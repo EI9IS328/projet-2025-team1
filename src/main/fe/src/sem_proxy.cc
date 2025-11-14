@@ -50,7 +50,10 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   isElastic_ = opt.isElastic;
   cout << boolalpha;
   bool isElastic = isElastic_;
-  bool saveSnapshot = opt.saveSnapshot;
+  bool save_snapshot = opt.saveSnapshot;
+  string snapFolder = opt.snapFolder;
+  int snapInterval = opt.snapInterval;
+
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
@@ -185,7 +188,13 @@ void SEMproxy::run()
 
     pnAtReceiver(0, indexTimeSample) = varnp1;
 
+
     swap(i1, i2);
+
+    if (save_snapshot && indexTimeSample % snapInterval){
+      saveSnapshot(dt_);
+    }
+
 
     auto tmp = solverData.m_i1;
     solverData.m_i1 = solverData.m_i2;
@@ -207,6 +216,56 @@ void SEMproxy::run()
        << endl;
   cout << "------------------------------------------------ " << endl;
 }
+
+
+
+
+void SEMproxy::saveSnapshot(int timestep)
+{
+    // Construire le nom du fichier
+    std::string filename;
+    if (snapFolder.compare("") == 0){
+        filename = "snapshot_" + std::to_string(timestep) + ".csv";
+
+    }
+    else{
+        filename = snapFolder+"/snapshot_" + std::to_string(timestep) + ".csv";
+
+    }
+    printf("%s\n", filename);
+    std::ofstream out(filename);
+
+    if (!out.is_open())
+    {
+        std::cerr << "Error: could not open snapshot file " << filename << std::endl;
+        return;
+    }
+
+    // En-tête
+    out << "x,y,z,p\n";
+
+    int nbNodes = m_mesh->getNumberOfNodes();
+
+    for (int node = 0; node < nbNodes; node++)
+    {
+        // Récupération des coordonnées du nœud
+        float x = m_mesh->nodeCoord(node, 0);
+        float y = m_mesh->nodeCoord(node, 1);
+        float z = m_mesh->nodeCoord(node, 2);
+
+        // Récupération de la pression — i2 contient "l'état courant"
+        float p = pnGlobal(node, i2);
+
+        out << x << "," << y << "," << z << "," << p << "\n";
+    }
+
+    out.close();
+}
+
+
+
+
+
 
 // Initialize arrays
 void SEMproxy::init_arrays()
