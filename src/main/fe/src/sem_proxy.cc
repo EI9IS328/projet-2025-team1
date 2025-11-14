@@ -192,7 +192,7 @@ void SEMproxy::run()
     swap(i1, i2);
 
     if (save_snapshot && indexTimeSample % snapInterval == 0){
-      saveSnapshot(dt_);
+      saveSnapshot(indexTimeSample);
     }
 
 
@@ -220,16 +220,16 @@ void SEMproxy::run()
 
 
 
-void SEMproxy::saveSnapshot(int timestep)
+void SEMproxy::saveSnapshot(int indexTimeSample)
 {
     // Construire le nom du fichier
     string filename;
     if (snapFolder.empty()){
-        filename = "snapshot_" + std::to_string(timestep) + ".csv";
+        filename = "snapshot_" + std::to_string(indexTimeSample) + ".csv";
 
     }
     else{
-        filename = snapFolder+"/snapshot_" + std::to_string(timestep) + ".csv";
+        filename = snapFolder+"/snapshot_" + std::to_string(indexTimeSample) + ".csv";
 
     }
     printf("save in %s\n", filename.c_str());
