@@ -50,6 +50,7 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   isElastic_ = opt.isElastic;
   cout << boolalpha;
   bool isElastic = isElastic_;
+  bool saveSnapshot = opt.saveSnapshot;
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
