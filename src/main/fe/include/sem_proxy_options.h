@@ -27,7 +27,7 @@ class SemProxyOptions
   bool isModelOnNodes = false;
   bool isElastic = false;
   bool saveSnapshot = false;
-  string snapFolder = ".";
+  string snapFolder = "";
   int snapInterval = 50;
 
   void validate() const
