@@ -89,12 +89,14 @@ class SEMproxy
   float domain_size_[3] = {0};
 
   // snapshots
-  bool is_snapshots_;
-  int snap_time_interval_;
-  std::string snap_folder_;
+  bool save_snapshot;  
+  string snapFolder;
+  int snapInterval;
+
 
   // physics
   bool isElastic_;
+  
 
   // time parameters
   float dt_;
