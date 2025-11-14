@@ -28,6 +28,7 @@ class SemProxyOptions
   bool isElastic = false;
   bool saveSnapshot = false;
   string snapFolder = "";
+  int snapInterval = 50;
 
   void validate() const
   {
@@ -76,7 +77,8 @@ class SemProxyOptions
         "is-elastic", "Elastic simulation", cxxopts::value<bool>(o.isElastic))
         ("save-snapshot", "Save snapshots during the simulation",
         cxxopts::value<bool>(o.saveSnapshot))
-        ("snap-folder", "Folder to save snapshots", cxxopts::value<string>(o.snapFolder))
+        ("snap-folder", "Folder to save snapshots (default = current folder)", cxxopts::value<string>(o.snapFolder))
+        ("snap-interval", "Step interval between snapshots save (default = 50)", cxxopts::value<int>(o.snapInterval))
 
 
     ;
