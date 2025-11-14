@@ -27,6 +27,7 @@ class SemProxyOptions
   bool isModelOnNodes = false;
   bool isElastic = false;
   bool saveSnapshot = false;
+  string snapFolder = "";
 
   void validate() const
   {
@@ -75,6 +76,7 @@ class SemProxyOptions
         "is-elastic", "Elastic simulation", cxxopts::value<bool>(o.isElastic))
         ("save-snapshot", "Save snapshots during the simulation",
         cxxopts::value<bool>(o.saveSnapshot))
+        ("snap-folder", "Folder to save snapshots", cxxopts::value<string>(o.snapFolder))
 
 
     ;
