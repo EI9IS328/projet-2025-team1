@@ -50,9 +50,9 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   isElastic_ = opt.isElastic;
   cout << boolalpha;
   bool isElastic = isElastic_;
-  bool save_snapshot = opt.saveSnapshot;
-  string snapFolder = opt.snapFolder;
-  int snapInterval = opt.snapInterval;
+  save_snapshot = opt.saveSnapshot;
+  snapFolder = opt.snapFolder;
+  snapInterval = opt.snapInterval;
 
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
