@@ -36,6 +36,9 @@ class SemProxyOptions
   string sismoFile = "";
   string sismoFolder = "";
 
+  //save perf
+  string perfFile = "";
+
   void validate() const
   {
     if (order < 1) throw std::runtime_error("order must be >= 1");
@@ -89,6 +92,8 @@ class SemProxyOptions
 
         ("sismo-file", "Sismo file for source definition", cxxopts::value<string>(o.sismoFile))
         ("sismo-folder", "Folder where sismo file is located", cxxopts::value<string>(o.sismoFolder))
+
+        ("perf-file", "File to save performance", cxxopts::value<string>(o.perfFile))
 
 
 

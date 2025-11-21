@@ -107,6 +107,10 @@ class SEMproxy
   string sismosFile; 
   string sismosFolder;
   std::vector<std::array<float, 3>> sismosPoints;
+  std::vector<int> sismosNodeIndex;
+
+  // save perf
+  string perfFile;
 
 
   // physics
@@ -147,6 +151,13 @@ class SEMproxy
   SolverFactory::implemType getImplem(string implemArg);
   SolverFactory::methodType getMethod(string methodArg);
   SolverFactory::meshType getMesh(string meshArg);
+
+  string getSismoFileName(array<float,3> point);
+  void initSismoPoints();
+  void saveSismoPoints(int timestep);
+
+  void savePerf(float kerneltime_ms,
+                float outputtime_ms);
 };
 
 #endif /* SEMPROXY_HPP_ */

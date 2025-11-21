@@ -11,6 +11,7 @@
 #include <cartesian_unstruct_builder.h>
 #include <sem_solver_acoustic.h>
 #include <source_and_receiver_utils.h>
+#include <stdio.h>
 
 #include <cxxopts.hpp>
 #include <iomanip>
@@ -50,12 +51,20 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   isElastic_ = opt.isElastic;
   cout << boolalpha;
   bool isElastic = isElastic_;
+
+  // snapshots
   save_snapshot = opt.saveSnapshot;
   snapFolder = opt.snapFolder;
   snapInterval = opt.snapInterval;
 
+  // sismos
   sismosFile = opt.sismoFile;
   sismosFolder = opt.sismoFolder;
+  sismosPoints.clear();
+  sismosNodeIndex.clear();
+
+  // perf
+  perfFile = opt.perfFile;
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
@@ -63,7 +72,8 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   const SolverFactory::modelLocationType modelLocation =
       isModelOnNodes ? SolverFactory::modelLocationType::OnNodes
                      : SolverFactory::modelLocationType::OnElements;
-  const SolverFactory::physicType physicType = SolverFactory::physicType::Acoustic;
+  const SolverFactory::physicType physicType =
+      SolverFactory::physicType::Acoustic;
 
   float lx = domain_size_[0];
   float ly = domain_size_[1];
@@ -143,7 +153,6 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   std::cout << "Order of approximation will be " << order << std::endl;
   std::cout << "Time step is " << dt_ << "s" << std::endl;
   std::cout << "Simulated time is " << timemax_ << "s" << std::endl;
-
 }
 
 void SEMproxy::run()
@@ -154,49 +163,7 @@ void SEMproxy::run()
   SEMsolverDataAcoustic solverData(i1, i2, myRHSTerm, pnGlobal, rhsElement,
                                    rhsWeights);
 
-
-
-  std::vector<int> sismosNodeIndex;
-  if (!sismosFile.empty()){
-    parsePointSismos(sismosFile);
-
-    sismosNodeIndex.clear();
-
-    for (size_t i = 0; i < sismosPoints.size(); i++){
-
-      const auto& s = sismosPoints[i];
-      int index_node_sismos = findClosestNode(s[0], s[1], s[2]);
-
-      sismosNodeIndex.push_back(index_node_sismos);
-
-      // std::string filename = "sismo_" + std::to_string(index_node_sismos) + ".csv";
-      std::string sismo_file = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
-
-      string filename;
-      if (sismosFolder.empty()){
-          filename = sismo_file;
-
-      }
-      else{
-          filename = sismosFolder+"/"+ sismo_file;
-      }
-      std::ofstream out(filename);
-      if (!out.is_open())
-      {
-          std::cerr << "Error: could not open sismo file " << filename << std::endl;
-          continue;
-      }
-
-      out << "timestep,pressure\n";
-      out.close();
-
-      std::cout << "Fichier créé : " << filename
-                << " pour sismo #" << i
-                << " (node " << index_node_sismos << ")\n";
-    }
-  }
-
-
+  initSismoPoints();
 
   for (int indexTimeSample = 0; indexTimeSample < num_sample_;
        indexTimeSample++)
@@ -235,44 +202,13 @@ void SEMproxy::run()
     pnAtReceiver(0, indexTimeSample) = varnp1;
     swap(i1, i2);
 
-    if (save_snapshot && indexTimeSample % snapInterval == 0){
+    if (save_snapshot && indexTimeSample % snapInterval == 0)
+    {
       int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
       saveSnapshot(time_ms);
     }
 
-    if (!sismosFile.empty())
-    {
-      for (size_t i = 0; i < sismosNodeIndex.size(); i++){
-        int node = sismosNodeIndex[i];  
-        const auto& s = sismosPoints[i];
-
-        float pression = pnGlobal(node, i2);
-
-        // std::string filename = "sismo_" + std::to_string(node) + ".csv";
-        // std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
-
-        std::string sismo_file = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
-
-        string filename;
-        if (sismosFolder.empty()){
-            filename = sismo_file;
-
-        }
-        else{
-            filename = sismosFolder+"/"+ sismo_file;
-        }
-
-        std::ofstream out(filename, std::ios::app);
-        if (!out.is_open())
-        {
-            std::cerr << "Error: could not open sismo file " << filename << std::endl;
-            continue;
-        }
-
-        out << indexTimeSample << "," << pression << "\n";
-        out.close();
-    }
-    }
+    saveSismoPoints(indexTimeSample);
 
     auto tmp = solverData.m_i1;
     solverData.m_i1 = solverData.m_i2;
@@ -293,118 +229,239 @@ void SEMproxy::run()
   cout << "---- Elapsed Output Time : " << outputtime_ms / 1E6 << " seconds."
        << endl;
   cout << "------------------------------------------------ " << endl;
+
+
+  savePerf(kerneltime_ms, outputtime_ms);
+
+}
+
+void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
+{
+  if (!perfFile.empty())
+  {
+    std::ofstream out(perfFile, std::ios::app);
+    if (!out.is_open())
+    {
+      std::cerr << "Error: could not open perf file " << perfFile << std::endl;
+      return;
+    }
+
+    // if empty file, write header
+    out.seekp(0, std::ios::end);
+    if (out.tellp() == 0)
+    {
+      // kernel_time, output_time, total_time, nb_nodes, nb_step, nb_snapshot, save_sismo
+        out << "kernel_time_ms,output_time_ms,total_time_ms,nb_nodes,nb_steps,nb_snapshot,save_sismo\n";
+    }
+
+    float total_time_ms = kerneltime_ms + outputtime_ms;
+    int nb_nodes = m_mesh->getNumberOfNodes();
+
+    int nb_snapshot = save_snapshot ? (num_sample_ / snapInterval) + 1 : 0;
+    int save_sismo = sismosPoints.empty() ? 0 : 1;
+
+        out << std::fixed << std::setprecision(3)
+                << kerneltime_ms << "," << outputtime_ms << "," << total_time_ms << ","
+                << nb_nodes << "," << num_sample_ << "," << nb_snapshot << ","
+                << save_sismo << "\n";
+
+
+    out.close();
+  }
+
 }
 
 
+string SEMproxy::getSismoFileName(array<float, 3> point)
+{
+  std::string sismo_file = "sismo_" + std::to_string(point[0]) + "-" +
+                           std::to_string(point[1]) + "-" + std::to_string(point[3]) +
+                           ".csv";
+
+  string filename;
+  if (sismosFolder.empty())
+  {
+    filename = sismo_file;
+  }
+  else
+  {
+    filename = sismosFolder + "/" + sismo_file;
+  }
+
+  return filename;
+}
+
+void SEMproxy::initSismoPoints()
+{
+  if (!sismosFile.empty())
+  {
+    parsePointSismos(sismosFile);
+
+    sismosNodeIndex.clear();
+
+    for (size_t i = 0; i < sismosPoints.size(); i++)
+    {
+      const auto& s = sismosPoints[i];
+      int index_node_sismos = findClosestNode(s[0], s[1], s[2]);
+
+      sismosNodeIndex.push_back(index_node_sismos);
+
+      string filename = getSismoFileName(s);
+
+      std::ofstream out(filename);
+      if (!out.is_open())
+      {
+        std::cerr << "Error: could not open sismo file " << filename
+                  << std::endl;
+        continue;
+      }
+
+
+      out << "timestep,pressure\n";
+      out.close();
+
+    }
+  }
+}
+
+void SEMproxy::saveSismoPoints(int timestep)
+{
+  if (!sismosFile.empty())
+  {
+    for (size_t i = 0; i < sismosNodeIndex.size(); i++)
+    {
+      int node = sismosNodeIndex[i];
+      const auto& s = sismosPoints[i];
+
+      float pression = pnGlobal(node, i2);
+
+      string filename = getSismoFileName(s);
+
+      std::ofstream out(filename, std::ios::app);
+      if (!out.is_open())
+      {
+        std::cerr << "Error: could not open sismo file " << filename
+                  << std::endl;
+        continue;
+      }
+
+      out << timestep << "," << pression << "\n";
+      out.close();
+    }
+  }
+}
 
 void SEMproxy::saveSnapshot(int time_ms)
 {
-    // Construire le nom du fichier
-    string filename;
-    if (snapFolder.empty()){
-        filename = "snapshot_" + std::to_string(time_ms) + ".csv";
+  // Construire le nom du fichier
+  string filename;
+  if (snapFolder.empty())
+  {
+    filename = "snapshot_" + std::to_string(time_ms) + ".csv";
+  }
+  else
+  {
+    filename = snapFolder + "/snapshot_" + std::to_string(time_ms) + ".csv";
+  }
+  printf("save in %s\n", filename.c_str());
+  std::ofstream out(filename);
 
-    }
-    else{
-        filename = snapFolder+"/snapshot_" + std::to_string(time_ms) + ".csv";
+  if (!out.is_open())
+  {
+    std::cerr << "Error: could not open snapshot file " << filename
+              << std::endl;
+    return;
+  }
 
-    }
-    printf("save in %s\n", filename.c_str());
-    std::ofstream out(filename);
+  out << "x,y,z,p\n";
 
-    if (!out.is_open())
-    {
-        std::cerr << "Error: could not open snapshot file " << filename << std::endl;
-        return;
-    }
+  int nbNodes = m_mesh->getNumberOfNodes();
 
-    out << "x,y,z,p\n";
+  for (int node = 0; node < nbNodes; node++)
+  {
+    // Récupération des coordonnées du nœud
+    float x = m_mesh->nodeCoord(node, 0);
+    float y = m_mesh->nodeCoord(node, 1);
+    float z = m_mesh->nodeCoord(node, 2);
 
-    int nbNodes = m_mesh->getNumberOfNodes();
+    float p = pnGlobal(node, i2);
 
-    for (int node = 0; node < nbNodes; node++)
-    {
-        // Récupération des coordonnées du nœud
-        float x = m_mesh->nodeCoord(node, 0);
-        float y = m_mesh->nodeCoord(node, 1);
-        float z = m_mesh->nodeCoord(node, 2);
+    out << x << "," << y << "," << z << "," << p << "\n";
+  }
 
-        float p = pnGlobal(node, i2);
-
-        out << x << "," << y << "," << z << "," << p << "\n";
-    }
-
-    out.close();
+  out.close();
 }
-
 
 void SEMproxy::parsePointSismos(const std::string& filename)
 {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Erreur : impossible d'ouvrir le fichier " << filename << std::endl;
-        return;
-    }
+  std::ifstream file(filename);
+  if (!file.is_open())
+  {
+    std::cerr << "Erreur : could not open sismos file " << filename
+              << std::endl;
+    return;
+  }
 
-    sismosPoints.clear();
+  sismosPoints.clear();
 
-    std::string line;
-    while (std::getline(file, line))
+  std::string line;
+  while (std::getline(file, line))
+  {
+    if (line.empty()) continue;
+
+    float x, y, z;
+    char c1, c2; // for ','
+
+    std::stringstream ss(line);
+
+    if (!(ss >> x >> c1 >> y >> c2 >> z))
     {
-        if (line.empty()) continue;
-
-        float x, y, z;
-        char c1, c2; // pour lire les virgules
-
-        std::stringstream ss(line);
-
-        if (!(ss >> x >> c1 >> y >> c2 >> z)) {
-            std::cerr << "Ligne invalide ignorée : " << line << std::endl;
-            continue;
-        }
-
-        if (c1 != ',' || c2 != ',') {
-            std::cerr << "Erreur de format (virgules attendues) : " << line << std::endl;
-            continue;
-        }
-
-        sismosPoints.push_back({x, y, z});
+      std::cerr << " invalid line in sismos file, line:" << line << std::endl;
+      continue;
     }
 
-    file.close();
+    if (c1 != ',' || c2 != ',')
+    {
+      std::cerr << "Format error in sismos file, line:" << line
+                << std::endl;
+      continue;
+    }
 
-    std::cout << "✔ " << sismosPoints.size() 
-              << " sismos chargés depuis " << filename << std::endl;
+    sismosPoints.push_back({x, y, z});
+  }
+
+  file.close();
+
+  std::cout << "✔ " << sismosPoints.size() << " sismos points loaded from "
+            << filename << std::endl;
 }
-
 
 int SEMproxy::findClosestNode(float x, float y, float z)
 {
-    int nNodes = m_mesh->getNumberOfNodes();
-    int closestNode = 0;
-    float minDist2 = std::numeric_limits<float>::max();
+  int nNodes = m_mesh->getNumberOfNodes();
+  int closestNode = 0;
+  float minDist2 = std::numeric_limits<float>::max();
 
-    for (int i = 0; i < nNodes; i++)
+  for (int i = 0; i < nNodes; i++)
+  {
+    float nx = m_mesh->nodeCoord(i, 0);
+    float ny = m_mesh->nodeCoord(i, 1);
+    float nz = m_mesh->nodeCoord(i, 2);
+
+    float dx = x - nx;
+    float dy = y - ny;
+    float dz = z - nz;
+
+    float dist2 = dx * dx + dy * dy + dz * dz;
+
+    if (dist2 < minDist2)
     {
-        float nx = m_mesh->nodeCoord(i, 0);
-        float ny = m_mesh->nodeCoord(i, 1);
-        float nz = m_mesh->nodeCoord(i, 2);
-
-        float dx = x - nx;
-        float dy = y - ny;
-        float dz = z - nz;
-
-        float dist2 = dx*dx + dy*dy + dz*dz;
-
-        if (dist2 < minDist2)
-        {
-            minDist2 = dist2;
-            closestNode = i;
-        }
+      minDist2 = dist2;
+      closestNode = i;
     }
-    return closestNode;
+  }
+  return closestNode;
 }
-
 
 // Initialize arrays
 void SEMproxy::init_arrays()
