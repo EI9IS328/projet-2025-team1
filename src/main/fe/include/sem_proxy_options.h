@@ -26,9 +26,14 @@ class SemProxyOptions
   // Boolean to tell if the model is charged on nodes or on element
   bool isModelOnNodes = false;
   bool isElastic = false;
+
+  // snapshot
   bool saveSnapshot = false;
   string snapFolder = "";
   int snapInterval = 50;
+
+  //sismo
+  string sismoFile = "";
 
   void validate() const
   {
@@ -75,10 +80,13 @@ class SemProxyOptions
         "(false)",
         cxxopts::value<bool>(o.isModelOnNodes))(
         "is-elastic", "Elastic simulation", cxxopts::value<bool>(o.isElastic))
+
         ("save-snapshot", "Save snapshots during the simulation",
         cxxopts::value<bool>(o.saveSnapshot))
         ("snap-folder", "Folder to save snapshots (default = current folder)", cxxopts::value<string>(o.snapFolder))
         ("snap-interval", "Step interval between snapshots save (default = 50)", cxxopts::value<int>(o.snapInterval))
+
+        ("sismo-file", "Sismo file for source definition", cxxopts::value<string>(o.sismoFile))
 
 
     ;
