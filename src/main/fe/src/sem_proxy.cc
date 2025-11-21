@@ -55,6 +55,7 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   snapInterval = opt.snapInterval;
 
   sismosFile = opt.sismoFile;
+  sismosFolder = opt.sismoFolder;
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
@@ -169,9 +170,16 @@ void SEMproxy::run()
       sismosNodeIndex.push_back(index_node_sismos);
 
       // std::string filename = "sismo_" + std::to_string(index_node_sismos) + ".csv";
-      std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
+      std::string sismo_file = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
 
+      string filename;
+      if (sismosFolder.empty()){
+          filename = sismo_file;
 
+      }
+      else{
+          filename = sismosFolder+"/"+ sismo_file;
+      }
       std::ofstream out(filename);
       if (!out.is_open())
       {
@@ -241,7 +249,18 @@ void SEMproxy::run()
         float pression = pnGlobal(node, i2);
 
         // std::string filename = "sismo_" + std::to_string(node) + ".csv";
-        std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
+        // std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
+
+        std::string sismo_file = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
+
+        string filename;
+        if (sismosFolder.empty()){
+            filename = sismo_file;
+
+        }
+        else{
+            filename = sismosFolder+"/"+ sismo_file;
+        }
 
         std::ofstream out(filename, std::ios::app);
         if (!out.is_open())

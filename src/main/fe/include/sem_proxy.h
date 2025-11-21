@@ -84,10 +84,7 @@ class SEMproxy
   int findClosestNode(float x, float y, float z);
   void parsePointSismos(const std::string& filename);
 
-  //sismos;
-  string sismosFile; // the point to save each row is one point 
-  std::vector<std::array<float, 3>> sismosPoints;
-
+  
 
  private:
   int i1 = 0;
@@ -106,14 +103,10 @@ class SEMproxy
   string snapFolder;
   int snapInterval;
 
-
   //sismos;
-  bool save_sismos; // to save sismos 
-  string sismosFiles; // the point to save each row is one point 
-  int sismosInterval; // time step to save pressure 
-  //do an array for each sismosFiles
-
-  int pos_sismos; 
+  string sismosFile; 
+  string sismosFolder;
+  std::vector<std::array<float, 3>> sismosPoints;
 
 
   // physics
