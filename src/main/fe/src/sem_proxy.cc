@@ -54,6 +54,7 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   snapFolder = opt.snapFolder;
   snapInterval = opt.snapInterval;
 
+  sismosFile = opt.sismoFile;
 
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
@@ -155,8 +156,8 @@ void SEMproxy::run()
 
 
   std::vector<int> sismosNodeIndex;
-  if (save_sismos){
-    parsePointSismos(sismosFiles);
+  if (!sismosFile.empty()){
+    parsePointSismos(sismosFile);
 
     sismosNodeIndex.clear();
 
@@ -167,7 +168,9 @@ void SEMproxy::run()
 
       sismosNodeIndex.push_back(index_node_sismos);
 
-      std::string filename = "sismo_" + std::to_string(index_node_sismos) + ".csv";
+      // std::string filename = "sismo_" + std::to_string(index_node_sismos) + ".csv";
+      std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
+
 
       std::ofstream out(filename);
       if (!out.is_open())
@@ -179,7 +182,7 @@ void SEMproxy::run()
       out << "timestep,pressure\n";
       out.close();
 
-      std::cout << "✔ Fichier créé : " << filename
+      std::cout << "Fichier créé : " << filename
                 << " pour sismo #" << i
                 << " (node " << index_node_sismos << ")\n";
     }
@@ -222,8 +225,6 @@ void SEMproxy::run()
     }
 
     pnAtReceiver(0, indexTimeSample) = varnp1;
-
-
     swap(i1, i2);
 
     if (save_snapshot && indexTimeSample % snapInterval == 0){
@@ -231,16 +232,16 @@ void SEMproxy::run()
       saveSnapshot(time_ms);
     }
 
-
-
-    if (save_sismos && indexTimeSample % sismosInterval == 0)
+    if (!sismosFile.empty())
     {
       for (size_t i = 0; i < sismosNodeIndex.size(); i++){
         int node = sismosNodeIndex[i];  
+        const auto& s = sismosPoints[i];
 
         float pression = pnGlobal(node, i2);
 
-        std::string filename = "sismo_" + std::to_string(node) + ".csv";
+        // std::string filename = "sismo_" + std::to_string(node) + ".csv";
+        std::string filename = "sismo_" + std::to_string(s[0]) + "-"+ std::to_string(s[1])+"-"+std::to_string(s[3])+ ".csv";
 
         std::ofstream out(filename, std::ios::app);
         if (!out.is_open())
@@ -251,6 +252,7 @@ void SEMproxy::run()
 
         out << indexTimeSample << "," << pression << "\n";
         out.close();
+    }
     }
 
     auto tmp = solverData.m_i1;
@@ -273,7 +275,6 @@ void SEMproxy::run()
        << endl;
   cout << "------------------------------------------------ " << endl;
 }
-
 
 
 
@@ -325,26 +326,36 @@ void SEMproxy::parsePointSismos(const std::string& filename)
         std::cerr << "Erreur : impossible d'ouvrir le fichier " << filename << std::endl;
         return;
     }
-    sismosPoints.clear(); 
-    std::string line;
-    while (std::getline(file, line)) {
 
+    sismosPoints.clear();
+
+    std::string line;
+    while (std::getline(file, line))
+    {
         if (line.empty()) continue;
 
-        std::stringstream ss(line);
         float x, y, z;
+        char c1, c2; // pour lire les virgules
 
-        if (!(ss >> x >> y >> z)) {
+        std::stringstream ss(line);
+
+        if (!(ss >> x >> c1 >> y >> c2 >> z)) {
             std::cerr << "Ligne invalide ignorée : " << line << std::endl;
             continue;
         }
 
-        // ajouter dans le vector
+        if (c1 != ',' || c2 != ',') {
+            std::cerr << "Erreur de format (virgules attendues) : " << line << std::endl;
+            continue;
+        }
+
         sismosPoints.push_back({x, y, z});
     }
+
     file.close();
+
     std::cout << "✔ " << sismosPoints.size() 
-              << " sismomètres chargés depuis " << filename << std::endl;
+              << " sismos chargés depuis " << filename << std::endl;
 }
 
 
@@ -356,9 +367,9 @@ int SEMproxy::findClosestNode(float x, float y, float z)
 
     for (int i = 0; i < nNodes; i++)
     {
-        float nx = m_mesh->getCoordinate(i, 0);
-        float ny = m_mesh->getCoordinate(i, 1);
-        float nz = m_mesh->getCoordinate(i, 2);
+        float nx = m_mesh->nodeCoord(i, 0);
+        float ny = m_mesh->nodeCoord(i, 1);
+        float nz = m_mesh->nodeCoord(i, 2);
 
         float dx = x - nx;
         float dy = y - ny;
