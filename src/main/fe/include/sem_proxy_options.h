@@ -34,6 +34,7 @@ class SemProxyOptions
 
   //sismo
   string sismoFile = "";
+  string sismoFolder = "";
 
   void validate() const
   {
@@ -87,6 +88,8 @@ class SemProxyOptions
         ("snap-interval", "Step interval between snapshots save (default = 50)", cxxopts::value<int>(o.snapInterval))
 
         ("sismo-file", "Sismo file for source definition", cxxopts::value<string>(o.sismoFile))
+        ("sismo-folder", "Folder where sismo file is located", cxxopts::value<string>(o.sismoFolder))
+
 
 
     ;
