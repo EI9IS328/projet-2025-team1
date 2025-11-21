@@ -152,6 +152,41 @@ void SEMproxy::run()
   SEMsolverDataAcoustic solverData(i1, i2, myRHSTerm, pnGlobal, rhsElement,
                                    rhsWeights);
 
+
+
+  std::vector<int> sismosNodeIndex;
+  if (save_sismos){
+    parsePointSismos(sismosFiles);
+
+    sismosNodeIndex.clear();
+
+    for (size_t i = 0; i < sismosPoints.size(); i++){
+
+      const auto& s = sismosPoints[i];
+      int index_node_sismos = findClosestNode(s[0], s[1], s[2]);
+
+      sismosNodeIndex.push_back(index_node_sismos);
+
+      std::string filename = "sismo_" + std::to_string(index_node_sismos) + ".csv";
+
+      std::ofstream out(filename);
+      if (!out.is_open())
+      {
+          std::cerr << "Error: could not open sismo file " << filename << std::endl;
+          continue;
+      }
+
+      out << "timestep,pressure\n";
+      out.close();
+
+      std::cout << "✔ Fichier créé : " << filename
+                << " pour sismo #" << i
+                << " (node " << index_node_sismos << ")\n";
+    }
+  }
+
+
+
   for (int indexTimeSample = 0; indexTimeSample < num_sample_;
        indexTimeSample++)
   {
@@ -196,6 +231,27 @@ void SEMproxy::run()
       saveSnapshot(time_ms);
     }
 
+
+
+    if (save_sismos && indexTimeSample % sismosInterval == 0)
+    {
+      for (size_t i = 0; i < sismosNodeIndex.size(); i++){
+        int node = sismosNodeIndex[i];  
+
+        float pression = pnGlobal(node, i2);
+
+        std::string filename = "sismo_" + std::to_string(node) + ".csv";
+
+        std::ofstream out(filename, std::ios::app);
+        if (!out.is_open())
+        {
+            std::cerr << "Error: could not open sismo file " << filename << std::endl;
+            continue;
+        }
+
+        out << indexTimeSample << "," << pression << "\n";
+        out.close();
+    }
 
     auto tmp = solverData.m_i1;
     solverData.m_i1 = solverData.m_i2;
@@ -242,7 +298,6 @@ void SEMproxy::saveSnapshot(int time_ms)
         return;
     }
 
-    // En-tête
     out << "x,y,z,p\n";
 
     int nbNodes = m_mesh->getNumberOfNodes();
@@ -254,7 +309,6 @@ void SEMproxy::saveSnapshot(int time_ms)
         float y = m_mesh->nodeCoord(node, 1);
         float z = m_mesh->nodeCoord(node, 2);
 
-        // Récupération de la pression — i2 contient "l'état courant"
         float p = pnGlobal(node, i2);
 
         out << x << "," << y << "," << z << "," << p << "\n";
@@ -264,8 +318,62 @@ void SEMproxy::saveSnapshot(int time_ms)
 }
 
 
+void SEMproxy::parsePointSismos(const std::string& filename)
+{
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Erreur : impossible d'ouvrir le fichier " << filename << std::endl;
+        return;
+    }
+    sismosPoints.clear(); 
+    std::string line;
+    while (std::getline(file, line)) {
+
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+        float x, y, z;
+
+        if (!(ss >> x >> y >> z)) {
+            std::cerr << "Ligne invalide ignorée : " << line << std::endl;
+            continue;
+        }
+
+        // ajouter dans le vector
+        sismosPoints.push_back({x, y, z});
+    }
+    file.close();
+    std::cout << "✔ " << sismosPoints.size() 
+              << " sismomètres chargés depuis " << filename << std::endl;
+}
 
 
+int SEMproxy::findClosestNode(float x, float y, float z)
+{
+    int nNodes = m_mesh->getNumberOfNodes();
+    int closestNode = 0;
+    float minDist2 = std::numeric_limits<float>::max();
+
+    for (int i = 0; i < nNodes; i++)
+    {
+        float nx = m_mesh->getCoordinate(i, 0);
+        float ny = m_mesh->getCoordinate(i, 1);
+        float nz = m_mesh->getCoordinate(i, 2);
+
+        float dx = x - nx;
+        float dy = y - ny;
+        float dz = z - nz;
+
+        float dist2 = dx*dx + dy*dy + dz*dz;
+
+        if (dist2 < minDist2)
+        {
+            minDist2 = dist2;
+            closestNode = i;
+        }
+    }
+    return closestNode;
+}
 
 
 // Initialize arrays
