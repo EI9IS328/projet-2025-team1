@@ -121,5 +121,16 @@ def main():
         print(f"Une erreur est survenue lors de la sauvegarde du graphique : {e}")
     bench["plot_save"] = time.time() - start
 
+    # Sauvegarder le benchmark dans un fichier csv
+    if args.benchmark:
+        write_header = not os.path.exists(args.benchmark)
+
+        with open(args.benchmark, 'a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=bench.keys())
+            if write_header:
+                writer.writeheader()
+            writer.writerow(bench)
+
+        print(f"Benchmark sauvegardé dans {args.benchmark}")
 if __name__ == "__main__":
     main()
