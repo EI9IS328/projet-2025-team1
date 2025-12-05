@@ -39,7 +39,7 @@ class SemProxyOptions
   //save perf
   string perfFile = "";
 
-  string insituType = "";
+  bool insituHistogram = false;
   int insituInterval = 50;
 
 
@@ -100,7 +100,7 @@ class SemProxyOptions
 
         ("perf-file", "File to save performance", cxxopts::value<string>(o.perfFile))
 
-        ("insitu", "In-situ processing type: {'histogram'}", cxxopts::value<string>(o.insituType))
+        ("insitu-histogram", "Enable in-situ histogram processing", cxxopts::value<bool>(o.insituHistogram))
         ("insitu-interval", "Interval between in-situ processing", cxxopts::value<int>(o.insituInterval))
 
 
