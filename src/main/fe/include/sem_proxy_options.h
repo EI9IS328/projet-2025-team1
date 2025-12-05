@@ -39,6 +39,7 @@ class SemProxyOptions
   //save perf
   string perfFile = "";
 
+  string insituFolder = "";
   bool insituHistogram = false;
   int insituInterval = 50;
 
@@ -102,6 +103,7 @@ class SemProxyOptions
 
         ("insitu-histogram", "Enable in-situ histogram processing", cxxopts::value<bool>(o.insituHistogram))
         ("insitu-interval", "Interval between in-situ processing", cxxopts::value<int>(o.insituInterval))
+        ("insitu-folder", "Folder to save in-situ results", cxxopts::value<string>(o.insituFolder))
 
 
 
