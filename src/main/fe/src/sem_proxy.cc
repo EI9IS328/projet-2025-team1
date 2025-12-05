@@ -19,6 +19,7 @@
 #include <sstream>
 #include <variant>
 
+
 using namespace SourceAndReceiverUtils;
 
 SEMproxy::SEMproxy(const SemProxyOptions& opt)
@@ -66,6 +67,11 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   // perf
   perfFile = opt.perfFile;
 
+  // histogramme
+  insituHistogram = opt.insituHistogram;
+  insituInterval = opt.insituInterval;
+
+  
   const SolverFactory::methodType methodType = getMethod(opt.method);
   const SolverFactory::implemType implemType = getImplem(opt.implem);
   const SolverFactory::meshType meshType = getMesh(opt.mesh);
@@ -206,6 +212,62 @@ void SEMproxy::run()
     {
       int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
       saveSnapshot(time_ms);
+    }
+
+    if (insituHistogram && indexTimeSample % insituInterval == 0){
+      
+      int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
+      string filename;
+      if (insituFolder.empty())
+      {
+        filename = "histogram_" + std::to_string(time_ms) + ".csv";
+      }
+      else
+      {
+        filename = insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
+      }
+      printf("save in %s\n", filename.c_str());
+      std::ofstream out(filename);
+
+      if (!out.is_open())
+      {
+        std::cerr << "Error: could not open histogram_ file " << filename
+                  << std::endl;
+        return;
+      }
+
+      int nbNodes = m_mesh->getNumberOfNodes();
+
+      float pmin = std::numeric_limits<float>::max();
+      float pmax = std::numeric_limits<float>::lowest();
+
+      for (int node = 0; node < nbNodes; node++) {
+          float p = pnGlobal(node, i2);
+          if (p < pmin) pmin = p;
+          if (p > pmax) pmax = p;
+      }
+
+      const int NBINS = 10;
+      std::vector<int> hist(NBINS, 0);
+
+      float binWidth = (pmax - pmin) / NBINS;
+
+      for (int node = 0; node < nbNodes; node++) {
+          float p = pnGlobal(node, i2);
+
+          int bin = (int)((p - pmin) / binWidth);
+          if (bin == NBINS) bin = NBINS - 1; 
+
+          hist[bin]++;
+      }
+
+      for (int i = 0; i < NBINS; i++) {
+          float bmin = pmin + i * binWidth;
+          float bmax = bmin + binWidth;
+          out << "Bin " << i 
+                    << " [" << bmin << " , " << bmax << "] : "
+                    << hist[i] << " points\n";
+      }
     }
 
     saveSismoPoints(indexTimeSample);

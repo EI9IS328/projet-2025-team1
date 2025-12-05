@@ -39,6 +39,7 @@ class SemProxyOptions
   //save perf
   string perfFile = "";
 
+  //insitu
   string insituFolder = "";
   bool insituHistogram = false;
   int insituInterval = 50;

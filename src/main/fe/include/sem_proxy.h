@@ -113,6 +113,11 @@ class SEMproxy
   string perfFile;
 
 
+  int insituHistogram;
+  int insituInterval;
+  string insituFolder;
+
+
   // physics
   bool isElastic_;
   
