@@ -100,7 +100,7 @@ class SemProxyOptions
 
         ("perf-file", "File to save performance", cxxopts::value<string>(o.perfFile))
 
-        ("insitu", "In-situ processing type: {'histogramme'}", cxxopts::value<string>(o.insituType))
+        ("insitu", "In-situ processing type: {'histogram'}", cxxopts::value<string>(o.insituType))
         ("insitu-interval", "Interval between in-situ processing", cxxopts::value<int>(o.insituInterval))
 
 
