@@ -19,7 +19,7 @@
 #include <variant>
 
 #include "sem_proxy_options.h"
-
+#include "ppm_writer.h"
 /**
  * @class SEMproxy
  */
@@ -80,6 +80,7 @@ class SEMproxy
   float find_cfl_dt(float cfl_factor);
 
   void saveSnapshot(int timestep);
+  void saveSnapshotPPM(int time_ms);
 
   int findClosestNode(float x, float y, float z);
   void parsePointSismos(const std::string& filename);
@@ -112,6 +113,21 @@ class SEMproxy
   // save perf
   string perfFile;
 
+
+  // ppm 
+  bool savePPM;
+  std::string ppmFolder;
+  int ppmInterval;
+  PPMWriter::SlicePlane ppmPlane;
+  int ppmSliceIndex;
+  PPMWriter::Colormap ppmColormap;
+
+
+  // compression
+  bool useCompression;
+  int compressionBits;
+  bool useRLE;
+  std::string compressionStatsFile;
 
   int insituHistogram;
   int insituInterval;

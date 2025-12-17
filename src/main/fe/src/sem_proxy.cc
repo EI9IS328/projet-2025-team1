@@ -6,6 +6,9 @@
 //************************************************************************
 
 #include "sem_proxy.h"
+#include "ppm_writer.h"
+#include "compression_utils.h"
+
 
 #include <cartesian_struct_builder.h>
 #include <cartesian_unstruct_builder.h>
@@ -57,6 +60,32 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   save_snapshot = opt.saveSnapshot;
   snapFolder = opt.snapFolder;
   snapInterval = opt.snapInterval;
+  
+  savePPM = opt.savePPM;
+  ppmFolder = opt.ppmFolder;
+  ppmInterval = opt.ppmInterval;
+  ppmSliceIndex = opt.ppmSliceIndex;
+
+  if (opt.ppmPlane == "xy") 
+    ppmPlane = PPMWriter::SlicePlane::XY;
+  else if (opt.ppmPlane == "xz") 
+    ppmPlane = PPMWriter::SlicePlane::XZ;
+  else if (opt.ppmPlane == "yz") 
+    ppmPlane = PPMWriter::SlicePlane::YZ;
+  else
+    ppmPlane = PPMWriter::SlicePlane::XY; // default
+  
+  // Conversion string -> enum pour la colormap
+  if (opt.ppmColormap == "viridis")
+    ppmColormap = PPMWriter::Colormap::VIRIDIS;
+  else if (opt.ppmColormap == "jet")
+    ppmColormap = PPMWriter::Colormap::JET;
+  else if (opt.ppmColormap == "coolwarm")
+    ppmColormap = PPMWriter::Colormap::COOLWARM;
+  else if (opt.ppmColormap == "grayscale")
+    ppmColormap = PPMWriter::Colormap::GRAYSCALE;
+  else
+    ppmColormap = PPMWriter::Colormap::VIRIDIS;
 
   // sismos
   sismosFile = opt.sismoFile;
@@ -160,7 +189,6 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   std::cout << "Time step is " << dt_ << "s" << std::endl;
   std::cout << "Simulated time is " << timemax_ << "s" << std::endl;
 }
-
 void SEMproxy::run()
 {
   time_point<system_clock> startComputeTime, startOutputTime, totalComputeTime,
@@ -174,12 +202,15 @@ void SEMproxy::run()
   for (int indexTimeSample = 0; indexTimeSample < num_sample_;
        indexTimeSample++)
   {
+    // ===== CALCUL =====
     startComputeTime = system_clock::now();
     m_solver->computeOneStep(dt_, indexTimeSample, solverData);
     totalComputeTime += system_clock::now() - startComputeTime;
 
+    // ===== SORTIES =====
     startOutputTime = system_clock::now();
 
+    // Output debug (tous les 50 pas)
     if (indexTimeSample % 50 == 0)
     {
       m_solver->outputSolutionValues(indexTimeSample, i1, rhsElement[0],
@@ -188,7 +219,6 @@ void SEMproxy::run()
 
     // Save pressure at receiver
     const int order = m_mesh->getOrder();
-
     float varnp1 = 0.0;
     for (int i = 0; i < order + 1; i++)
     {
@@ -208,15 +238,25 @@ void SEMproxy::run()
     pnAtReceiver(0, indexTimeSample) = varnp1;
     swap(i1, i2);
 
+    // ===== SNAPSHOTS (toutes les méthodes) =====
+    // Calculer le temps une seule fois
+    int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
+    
+    // Snapshot CSV classique
     if (save_snapshot && indexTimeSample % snapInterval == 0)
     {
-      int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
       saveSnapshot(time_ms);
     }
 
-    if (insituHistogram && indexTimeSample % insituInterval == 0){
-      
-      int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
+    // Snapshot PPM
+    if (savePPM && indexTimeSample % ppmInterval == 0)
+    {
+      saveSnapshotPPM(time_ms);
+    }
+
+    // ===== HISTOGRAMME IN-SITU =====
+    if (insituHistogram && indexTimeSample % insituInterval == 0)
+    {
       string filename;
       if (insituFolder.empty())
       {
@@ -226,52 +266,60 @@ void SEMproxy::run()
       {
         filename = insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
       }
-      printf("save in %s\n", filename.c_str());
+      printf("save histogram in %s\n", filename.c_str());
+      
       std::ofstream out(filename);
-
       if (!out.is_open())
       {
-        std::cerr << "Error: could not open histogram_ file " << filename
+        std::cerr << "Error: could not open histogram file " << filename
                   << std::endl;
-        return;
+        // Ne pas faire return ici, continuer la simulation
       }
+      else
+      {
+        int nbNodes = m_mesh->getNumberOfNodes();
 
-      int nbNodes = m_mesh->getNumberOfNodes();
+        float pmin = std::numeric_limits<float>::max();
+        float pmax = std::numeric_limits<float>::lowest();
 
-      float pmin = std::numeric_limits<float>::max();
-      float pmax = std::numeric_limits<float>::lowest();
-
-      for (int node = 0; node < nbNodes; node++) {
+        for (int node = 0; node < nbNodes; node++)
+        {
           float p = pnGlobal(node, i2);
           if (p < pmin) pmin = p;
           if (p > pmax) pmax = p;
-      }
+        }
 
-      const int NBINS = 10;
-      std::vector<int> hist(NBINS, 0);
+        const int NBINS = 10;
+        std::vector<int> hist(NBINS, 0);
+        
+        float binWidth = (pmax - pmin) / NBINS;
 
-      float binWidth = (pmax - pmin) / NBINS;
-
-      for (int node = 0; node < nbNodes; node++) {
+        for (int node = 0; node < nbNodes; node++)
+        {
           float p = pnGlobal(node, i2);
 
           int bin = (int)((p - pmin) / binWidth);
-          if (bin == NBINS) bin = NBINS - 1; 
+          if (bin == NBINS) bin = NBINS - 1;
 
           hist[bin]++;
-      }
-
-      for (int i = 0; i < NBINS; i++) {
+        }
+      
+        for (int i = 0; i < NBINS; i++)
+        {
           float bmin = pmin + i * binWidth;
           float bmax = bmin + binWidth;
-          out << "Bin " << i 
-                    << " [" << bmin << " , " << bmax << "] : "
-                    << hist[i] << " points\n";
+          out << "Bin " << i
+              << " [" << bmin << " , " << bmax << "] : "
+              << hist[i] << " points\n";
+        }
+        out.close();
       }
     }
 
+    // ===== SISMOGRAMMES =====
     saveSismoPoints(indexTimeSample);
 
+    // Swap des indices temporels
     auto tmp = solverData.m_i1;
     solverData.m_i1 = solverData.m_i2;
     solverData.m_i2 = tmp;
@@ -279,6 +327,7 @@ void SEMproxy::run()
     totalOutputTime += system_clock::now() - startOutputTime;
   }
 
+  // ===== STATISTIQUES FINALES =====
   float kerneltime_ms = time_point_cast<microseconds>(totalComputeTime)
                             .time_since_epoch()
                             .count();
@@ -292,9 +341,7 @@ void SEMproxy::run()
        << endl;
   cout << "------------------------------------------------ " << endl;
 
-
   savePerf(kerneltime_ms, outputtime_ms);
-
 }
 
 void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
@@ -337,7 +384,7 @@ void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
 string SEMproxy::getSismoFileName(array<float, 3> point)
 {
   std::string sismo_file = "sismo_" + std::to_string(point[0]) + "-" +
-                           std::to_string(point[1]) + "-" + std::to_string(point[3]) +
+                           std::to_string(point[1]) + "-" + std::to_string(point[2]) +
                            ".csv";
 
   string filename;
@@ -454,6 +501,83 @@ void SEMproxy::saveSnapshot(int time_ms)
   out.close();
 }
 
+
+
+/*TP 3 code*/
+
+
+void SEMproxy::saveSnapshotPPM(int time_ms)
+{
+  // Extraire les données du champ de pression
+  int nbNodes = m_mesh->getNumberOfNodes();
+  std::vector<float> pressure_field;
+  pressure_field.reserve(nbNodes);
+  
+  for (int node = 0; node < nbNodes; node++) {
+    pressure_field.push_back(pnGlobal(node, i2));
+  }
+
+  // Dimensions de la grille
+  int nx = nb_nodes_[0];
+  int ny = nb_nodes_[1];
+  int nz = nb_nodes_[2];
+
+  // Position de la coupe (par défaut au milieu)
+  int sliceIndex = ppmSliceIndex;
+
+  if (sliceIndex == 0) {
+    switch (ppmPlane) {
+      case PPMWriter::SlicePlane::XY:
+        sliceIndex = nz / 2;
+        break;
+      case PPMWriter::SlicePlane::XZ:
+        sliceIndex = ny / 2;
+        break;
+      case PPMWriter::SlicePlane::YZ:
+        sliceIndex = nx / 2;
+        break;
+  }
+}
+
+
+  // Extraction de la slice
+  auto slice = PPMWriter::extractSlice(pressure_field, nx, ny, nz, 
+                                       ppmPlane, sliceIndex);
+
+  // Dimensions de l'image
+  int width, height;
+  switch (ppmPlane) {
+    case PPMWriter::SlicePlane::XY:
+      width = nx; height = ny;
+      break;
+    case PPMWriter::SlicePlane::XZ:
+      width = nx; height = nz;
+      break;
+    case PPMWriter::SlicePlane::YZ:
+      width = ny; height = nz;
+      break;
+  }
+
+  // Nom du fichier
+  std::string filename;
+  if (ppmFolder.empty()) {
+    filename = "ppm_" + std::to_string(time_ms) + ".ppm";
+  } else {
+    filename = ppmFolder + "/ppm_" + std::to_string(time_ms) + ".ppm";
+  }
+
+  // Écriture de l'image PPM
+  try {
+    PPMWriter::writeSlice(filename, slice, width, height, ppmColormap);
+    std::cout << "✓ PPM saved: " << filename << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "Error saving PPM: " << e.what() << std::endl;
+  }
+}
+
+
+/*TP 3 code end*/
+
 void SEMproxy::parsePointSismos(const std::string& filename)
 {
   std::ifstream file(filename);
@@ -555,9 +679,9 @@ void SEMproxy::init_source()
   int ey = nb_elements_[1];
   int ez = nb_elements_[2];
 
-  int lx = domain_size_[0];
-  int ly = domain_size_[1];
-  int lz = domain_size_[2];
+  float lx = domain_size_[0];
+  float ly = domain_size_[1];
+  float lz = domain_size_[2];
 
   // Get source element index
 
