@@ -18,16 +18,11 @@
 #include <string>
 #include <variant>
 
-#include "sem_proxy_options.h"
 #include "ppm_writer.h"
+#include "sem_proxy_options.h"
 /**
  * @class SEMproxy
  */
-
-
-
-
-
 
 class SEMproxy
 {
@@ -40,7 +35,7 @@ class SEMproxy
   /**
    * @brief Destructor of the SEMproxy class
    */
-  ~SEMproxy(){};
+  ~SEMproxy() {};
 
   /**
    * @brief Initialize the simulation.
@@ -80,12 +75,11 @@ class SEMproxy
   float find_cfl_dt(float cfl_factor);
 
   void saveSnapshot(int timestep);
+  void saveSliceSnapshot(int times_ms, int axe, float values);
   void saveSnapshotPPM(int time_ms);
 
   int findClosestNode(float x, float y, float z);
   void parsePointSismos(const std::string& filename);
-
-  
 
  private:
   int i1 = 0;
@@ -100,12 +94,12 @@ class SEMproxy
   float domain_size_[3] = {0};
 
   // snapshots
-  bool save_snapshot;  
+  bool save_snapshot;
   string snapFolder;
   int snapInterval;
 
-  //sismos;
-  string sismosFile; 
+  // sismos;
+  string sismosFile;
   string sismosFolder;
   std::vector<std::array<float, 3>> sismosPoints;
   std::vector<int> sismosNodeIndex;
@@ -113,15 +107,13 @@ class SEMproxy
   // save perf
   string perfFile;
 
-
-  // ppm 
+  // ppm
   bool savePPM;
   std::string ppmFolder;
   int ppmInterval;
   PPMWriter::SlicePlane ppmPlane;
   int ppmSliceIndex;
   PPMWriter::Colormap ppmColormap;
-
 
   // compression
   bool useCompression;
@@ -133,10 +125,13 @@ class SEMproxy
   int insituInterval;
   string insituFolder;
 
+  bool slideSnapshot;
+  int axe;
+  float values;
+  string sliceFolder;
 
   // physics
   bool isElastic_;
-  
 
   // time parameters
   float dt_;
@@ -173,12 +168,11 @@ class SEMproxy
   SolverFactory::methodType getMethod(string methodArg);
   SolverFactory::meshType getMesh(string meshArg);
 
-  string getSismoFileName(array<float,3> point);
+  string getSismoFileName(array<float, 3> point);
   void initSismoPoints();
   void saveSismoPoints(int timestep);
 
-  void savePerf(float kerneltime_ms,
-                float outputtime_ms);
+  void savePerf(float kerneltime_ms, float outputtime_ms);
 };
 
 #endif /* SEMPROXY_HPP_ */
