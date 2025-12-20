@@ -125,7 +125,8 @@ class SEMproxy
   int insituInterval;
   string insituFolder;
 
-  bool slideSnapshot;
+  bool sliceSnapshot;
+  int sliceInterval;
   int axe;
   float values;
   string sliceFolder;

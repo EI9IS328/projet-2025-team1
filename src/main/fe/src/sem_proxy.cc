@@ -101,7 +101,8 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
   insituFolder = opt.insituFolders;
 
   // slice insitu
-  slideSnapshot = opt.slideSnapshot;
+  sliceSnapshot = opt.sliceSnapshot;
+  sliceInterval = opt.sliceInterval;
   axe = opt.axe;
   values = opt.value;
   sliceFolder = opt.sliceFolder;
@@ -268,7 +269,7 @@ void SEMproxy::run()
       saveHistogramInsitu(time_ms);
 
 
-    if (slideSnapshot && indexTimeSample % insituInterval == 0)
+    if (sliceSnapshot && indexTimeSample % insituInterval == 0)
       saveSliceSnapshot(time_ms, axe, values);
 
     if (!sismosFile.empty())
@@ -320,19 +321,23 @@ void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
     {
       // kernel_time, output_time, total_time, nb_nodes, nb_step, nb_snapshot,
       // save_sismo
-      out << "kernel_time_ms,output_time_ms,total_time_ms,nb_nodes,nb_steps,nb_"
-             "snapshot,save_sismo\n";
+      out << "kernel_time_ms,output_time_ms,total_time_ms,nb_nodes,nb_steps,"
+             "nb_snapshot,nb_sismo,nb_snapshot_ppm,nb_histo,nb_slice\n";
     }
 
     float total_time_ms = kerneltime_ms + outputtime_ms;
     int nb_nodes = m_mesh->getNumberOfNodes();
 
     int nb_snapshot = save_snapshot ? (num_sample_ / snapInterval) + 1 : 0;
-    int save_sismo = sismosPoints.empty() ? 0 : 1;
+    int nb_sismo = sismosPoints.size();
+    int nb_snapshot_ppm = savePPM ? (num_sample_ / ppmInterval) + 1 : 0;
+    int nb_histo = insituHistogram ? (num_sample_ / insituInterval) + 1 : 0;
+    int nb_slice = sliceSnapshot ? (num_sample_ / sliceInterval) + 1 : 0;
 
     out << std::fixed << std::setprecision(3) << kerneltime_ms << ","
         << outputtime_ms << "," << total_time_ms << "," << nb_nodes << ","
-        << num_sample_ << "," << nb_snapshot << "," << save_sismo << "\n";
+        << num_sample_ << "," << nb_snapshot << "," << nb_sismo << ","
+        << nb_snapshot_ppm << "," << nb_histo << "," << nb_slice << "\n";
 
     out.close();
   }

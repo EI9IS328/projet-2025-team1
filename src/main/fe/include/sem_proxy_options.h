@@ -44,7 +44,8 @@ class SemProxyOptions
   bool insituHistogram = false;
   int insituInterval = 50;
 
-  bool slideSnapshot = false;
+  bool sliceSnapshot = false;
+  int sliceInterval = 50;
   int axe = 0;
   float value = 20;
   string sliceFolder = "";
@@ -145,18 +146,20 @@ class SemProxyOptions
         // In-situ histogram
         ("insitu-histogram", "Enable in-situ histogram processing",
          cxxopts::value<bool>(o.insituHistogram))(
-            "insitu-interval", "Interval between in-situ processing",
+            "insitu-interval", "Interval between in-situ processing (histo,)",
             cxxopts::value<int>(o.insituInterval))(
-            "insitu-folder", "Folder to save in-situ results",
+            "insitu-folder", "Folder to save in-situ results (histo,)",
             cxxopts::value<string>(o.insituFolders))
 
         // In-situ slice Snapshot
         ("insitu-slice", "Enable in-situ slice snapshots",
-         cxxopts::value<bool>(o.slideSnapshot))(
-            "insitu-axe", "Axe of the slice", cxxopts::value<int>(o.axe))(
-            "insitu-value", "Value to save in the axe",
+         cxxopts::value<bool>(o.sliceSnapshot))(
+            "insitu-slice-interval", "Interval between slice processing",
+            cxxopts::value<int>(o.sliceInterval))(
+            "insitu-slice-axe", "Axe of the slice", cxxopts::value<int>(o.axe))(
+            "insitu-slice-value", "Value axe fixed",
             cxxopts::value<float>(o.value))(
-            "slide-folder", "Folder to save slide results",
+            "insitu-slice-folder", "Folder to save slice results",
             cxxopts::value<string>(o.sliceFolder))
 
         // PPM Visualization
