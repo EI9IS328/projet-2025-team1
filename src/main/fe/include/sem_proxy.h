@@ -122,6 +122,7 @@ class SEMproxy
   std::string compressionStatsFile;
 
   int insituHistogram;
+  int insituHistogramBins;
   int insituInterval;
   string insituFolder;
 

@@ -41,13 +41,14 @@ class SemProxyOptions
 
   // insitu
   string insituFolders = "";
-  bool insituHistogram = false;
   int insituInterval = 50;
+  bool insituHistogram = false;
+  int insituHistogramBins = 100;
 
   bool sliceSnapshot = false;
   int sliceInterval = 50;
   int axe = 0;
-  float value = 20;
+  float value = 500;
   string sliceFolder = "";
 
   // PPM
@@ -71,6 +72,52 @@ class SemProxyOptions
       throw std::runtime_error("ex/ey/ez must be > 0");
     if (lx <= 0 || ly <= 0 || lz <= 0)
       throw std::runtime_error("lx/ly/lz must be > 0");
+
+    //// Validation snapshot ////
+    if (saveSnapshot)
+    {
+      // snap interval > 0
+      if (snapInterval <= 0)
+        throw std::runtime_error("snap-interval must be > 0");
+    }
+
+    // check if perf_filename end with .csv
+    if (!perfFile.empty())
+    {
+      if (perfFile.size() < 4 || perfFile.substr(perfFile.size() - 4) != ".csv")
+        throw std::runtime_error("perf-file must end with .csv");
+    }
+
+    //// Validation in-situ compute (histogram,) ////
+    if (insituHistogram)
+    {
+      // check if insitu-interval > 0
+      if (insituInterval <= 0)
+        throw std::runtime_error("insitu-interval must be > 0");
+    }
+
+    // Validation in-situ slice snapshot
+    if (sliceSnapshot)
+    {
+      // check if slice-interval > 0
+      if (sliceInterval <= 0)
+        throw std::runtime_error("insitu-slice-interval must be > 0");
+
+      // check if axe is 0, 1, or 2
+      if (axe != 0 && axe != 1 && axe != 2)
+        throw std::runtime_error("insitu-slice-axe must be: 0, 1, or 2");
+
+      // check if value is within the domain
+      if (axe == 0 && (value < 0 || value > lx))
+        throw std::runtime_error(
+            "insitu-slice-value must be within the domain size lx");
+      if (axe == 1 && (value < 0 || value > ly))
+        throw std::runtime_error(
+            "insitu-slice-value must be within the domain size ly");
+      if (axe == 2 && (value < 0 || value > lz))
+        throw std::runtime_error(
+            "insitu-slice-value must be within the domain size lz");
+    }
 
     // Validation PPM
     if (ppmPlane != "xy" && ppmPlane != "xz" && ppmPlane != "yz")
@@ -140,25 +187,31 @@ class SemProxyOptions
             cxxopts::value<string>(o.sismoFolder))
 
         // Performance
-        ("perf-file", "File to save performance",
+        ("perf-file", "File to save performance .csv",
          cxxopts::value<string>(o.perfFile))
 
         // In-situ histogram
-        ("insitu-histogram", "Enable in-situ histogram processing",
-         cxxopts::value<bool>(o.insituHistogram))(
-            "insitu-interval", "Interval between in-situ processing (histo,)",
-            cxxopts::value<int>(o.insituInterval))(
+        ("insitu-interval",
+         "Interval between in-situ processing (histo,) (default = 50)",
+         cxxopts::value<int>(o.insituInterval))(
             "insitu-folder", "Folder to save in-situ results (histo,)",
-            cxxopts::value<string>(o.insituFolders))
+            cxxopts::value<string>(o.insituFolders))(
+            "insitu-histogram", "Enable in-situ histogram processing",
+            cxxopts::value<bool>(o.insituHistogram))(
+            "insitu-histogram-bins", "Number of bins for histogram (default = 100)",
+            cxxopts::value<int>(o.insituHistogramBins))
 
         // In-situ slice Snapshot
         ("insitu-slice", "Enable in-situ slice snapshots",
          cxxopts::value<bool>(o.sliceSnapshot))(
-            "insitu-slice-interval", "Interval between slice processing",
+            "insitu-slice-interval",
+            "Interval between slice processing (default = 50)",
             cxxopts::value<int>(o.sliceInterval))(
-            "insitu-slice-axe", "Axe of the slice", cxxopts::value<int>(o.axe))(
-            "insitu-slice-value", "Value axe fixed",
-            cxxopts::value<float>(o.value))(
+            "insitu-slice-axe",
+            "Axe of the slice (0 -> x, 1 -> y, 2 -> z) (default = 0)",
+            cxxopts::value<int>(o.axe))("insitu-slice-value",
+                                        "Value axe fixed (default = 500)",
+                                        cxxopts::value<float>(o.value))(
             "insitu-slice-folder", "Folder to save slice results",
             cxxopts::value<string>(o.sliceFolder))
 

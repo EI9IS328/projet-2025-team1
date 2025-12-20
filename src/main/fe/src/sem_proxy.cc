@@ -97,6 +97,7 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
 
   // histogramme
   insituHistogram = opt.insituHistogram;
+  insituHistogramBins = opt.insituHistogramBins;
   insituInterval = opt.insituInterval;
   insituFolder = opt.insituFolders;
 
@@ -197,14 +198,11 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
 }
 void SEMproxy::run()
 {
-
   initSismoPoints();
 
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////  MAIN LOOP  //////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+  /////////////////////////////////////////////////////////
+  ///////////////////////  MAIN LOOP
+  /////////////////////////////////////////////////////////
 
   time_point<system_clock> startComputeTime, startOutputTime, totalComputeTime,
       totalOutputTime;
@@ -251,30 +249,24 @@ void SEMproxy::run()
     pnAtReceiver(0, indexTimeSample) = varnp1;
     swap(i1, i2);
 
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////  MAIN LOOP AFTER COMPUTE one step  //////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+    ///////////// MAIN LOOP AFTER COMPUTE one step
+    //////////////////////////////////////////////////////////////////////
 
     int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
 
     if (save_snapshot && indexTimeSample % snapInterval == 0)
       saveSnapshot(time_ms);
 
-    if (savePPM && indexTimeSample % ppmInterval == 0)
-      saveSnapshotPPM(time_ms);
-
+    if (savePPM && indexTimeSample % ppmInterval == 0) saveSnapshotPPM(time_ms);
 
     if (insituHistogram && indexTimeSample % insituInterval == 0)
       saveHistogramInsitu(time_ms);
 
-
     if (sliceSnapshot && indexTimeSample % insituInterval == 0)
       saveSliceSnapshot(time_ms, axe, values);
 
-    if (!sismosFile.empty())
-      saveSismoPoints(indexTimeSample);
-
+    if (!sismosFile.empty()) saveSismoPoints(indexTimeSample);
 
     /////////////////////////////////////////////
     /////////////////////////////////////////////
@@ -463,7 +455,9 @@ void SEMproxy::saveSnapshot(int time_ms)
 
 void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
 {
-  float eps = 1e-6;
+  float eps = 0;
+  int dim1;
+  int dim2;
   // Construire le nom du fichier
   string filename;
   if (sliceFolder.empty())
@@ -485,23 +479,46 @@ void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
     return;
   }
 
-  out << "x,y,z,p\n";
+  if (axe == 0)  // x fixe
+  {
+    out << "y,z,p\n";
+    eps = domain_size_[0] / (float)nb_nodes_[0] / 2.0f - 0.001f;
+    // 0.001 pour eviter la frontiere en commun au centre
+    dim1 = 1;
+    dim2 = 2;
+  }
+  else if (axe == 1)  // y fixe
+  {
+    out << "x,z,p\n";
+    eps = domain_size_[1] / (float)nb_nodes_[1] / 2.0f - 0.001f;
+    dim1 = 0;
+    dim2 = 2;
+  }
+  else if (axe == 2)  // z fixe
+  {
+    out << "x,y,p\n";
+    eps = domain_size_[2] / (float)nb_nodes_[2] / 2.0f - 0.001f;
+    dim1 = 0;
+    dim2 = 1;
+  }
+  else
+  {
+    throw std::runtime_error("Axe must be 0, 1, or 2");
+  }
 
   int nbNodes = m_mesh->getNumberOfNodes();
   for (int node = 0; node < nbNodes; node++)
   {
-    // Récupération des coordonnées du nœud
-    float coords[3];
-    coords[0] = m_mesh->nodeCoord(node, 0);  // x
-    coords[1] = m_mesh->nodeCoord(node, 1);  // y
-    coords[2] = m_mesh->nodeCoord(node, 2);  // z
-
-    float p = pnGlobal(node, i2);
-
-    if (std::fabs(coords[axe] - value) < eps)
+    float coord_dim_fixe = m_mesh->nodeCoord(node, axe);
+    if (std::fabs(coord_dim_fixe - value) < eps)
     {
-      out << coords[0] << "," << coords[1] << "," << coords[2] << "," << p
-          << "\n";
+      // Récupération des coordonnées du nœud
+      float coord_dim1 = m_mesh->nodeCoord(node, dim1);
+      float coord_dim2 = m_mesh->nodeCoord(node, dim2);
+
+      float p = pnGlobal(node, i2);
+
+      out << coord_dim1 << "," << coord_dim2 << "," << p << "\n";
     }
   }
 
@@ -517,8 +534,7 @@ void SEMproxy::saveHistogramInsitu(int time_ms)
   }
   else
   {
-    filename =
-        insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
+    filename = insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
   }
   printf("save histogram in %s\n", filename.c_str());
 
@@ -527,46 +543,49 @@ void SEMproxy::saveHistogramInsitu(int time_ms)
   {
     std::cerr << "Error: could not open histogram file " << filename
               << std::endl;
-    // Ne pas faire return ici, continuer la simulation
+    return;
   }
-  else
+
+  out << "left,right,count\n";  // header
+
+  int nbNodes = m_mesh->getNumberOfNodes();
+
+  float pmin = std::numeric_limits<float>::max();
+  float pmax = std::numeric_limits<float>::lowest();
+
+  for (int node = 0; node < nbNodes; node++)
   {
-    int nbNodes = m_mesh->getNumberOfNodes();
-
-    float pmin = std::numeric_limits<float>::max();
-    float pmax = std::numeric_limits<float>::lowest();
-
-    for (int node = 0; node < nbNodes; node++)
-    {
-      float p = pnGlobal(node, i2);
-      if (p < pmin) pmin = p;
-      if (p > pmax) pmax = p;
-    }
-
-    const int NBINS = 10;
-    std::vector<int> hist(NBINS, 0);
-
-    float binWidth = (pmax - pmin) / NBINS;
-
-    for (int node = 0; node < nbNodes; node++)
-    {
-      float p = pnGlobal(node, i2);
-
-      int bin = (int)((p - pmin) / binWidth);
-      if (bin == NBINS) bin = NBINS - 1;
-
-      hist[bin]++;
-    }
-
-    for (int i = 0; i < NBINS; i++)
-    {
-      float bmin = pmin + i * binWidth;
-      float bmax = bmin + binWidth;
-      out << "Bin " << i << " [" << bmin << " , " << bmax
-          << "] : " << hist[i] << " points\n";
-    }
-    out.close();
+    float p = pnGlobal(node, i2);
+    if (p < pmin) pmin = p;
+    if (p > pmax) pmax = p;
   }
+
+  std::vector<int> hist(insituHistogramBins, 0);
+
+  float binWidth = (pmax - pmin) / (float) insituHistogramBins;
+
+  if (binWidth == 0.0f)
+    binWidth = 1.0f;  // avoid division by zero if all values are the same
+
+  for (int node = 0; node < nbNodes; node++)
+  {
+    float p = pnGlobal(node, i2);
+
+    int bin_index = static_cast<int>((p - pmin) / binWidth);
+    if (bin_index == insituHistogramBins) // p == pmax
+        bin_index--;  // include the max value in the last bin
+
+    hist[bin_index]++;
+
+  }
+
+  for (int i = 0; i < insituHistogramBins; i++)
+  {
+    float bmin = pmin + i * binWidth;
+    float bmax = bmin + binWidth;
+    out << bmin << "," << bmax << "," << hist[i] << "\n";
+  }
+  out.close();
 }
 
 /*TP 3 code*/
