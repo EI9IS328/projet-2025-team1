@@ -173,6 +173,7 @@ class SEMproxy
   void saveSismoPoints(int timestep);
 
   void savePerf(float kerneltime_ms, float outputtime_ms);
+  void saveHistogramInsitu(int timestep);
 };
 
 #endif /* SEMPROXY_HPP_ */

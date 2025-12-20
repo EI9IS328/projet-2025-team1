@@ -196,13 +196,20 @@ SEMproxy::SEMproxy(const SemProxyOptions& opt)
 }
 void SEMproxy::run()
 {
+
+  initSismoPoints();
+
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////  MAIN LOOP  //////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
   time_point<system_clock> startComputeTime, startOutputTime, totalComputeTime,
       totalOutputTime;
 
   SEMsolverDataAcoustic solverData(i1, i2, myRHSTerm, pnGlobal, rhsElement,
                                    rhsWeights);
-
-  initSismoPoints();
 
   for (int indexTimeSample = 0; indexTimeSample < num_sample_;
        indexTimeSample++)
@@ -243,91 +250,33 @@ void SEMproxy::run()
     pnAtReceiver(0, indexTimeSample) = varnp1;
     swap(i1, i2);
 
-    // ===== SNAPSHOTS (toutes les méthodes) =====
-    // Calculer le temps une seule fois
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////  MAIN LOOP AFTER COMPUTE one step  //////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     int time_ms = static_cast<int>((indexTimeSample * dt_ * 1000.0));
 
-    // Snapshot CSV classique
     if (save_snapshot && indexTimeSample % snapInterval == 0)
-    {
       saveSnapshot(time_ms);
-    }
 
-    // Snapshot PPM
     if (savePPM && indexTimeSample % ppmInterval == 0)
-    {
       saveSnapshotPPM(time_ms);
-    }
 
-    // ===== HISTOGRAMME IN-SITU =====
+
     if (insituHistogram && indexTimeSample % insituInterval == 0)
-    {
-      string filename;
-      if (insituFolder.empty())
-      {
-        filename = "histogram_" + std::to_string(time_ms) + ".csv";
-      }
-      else
-      {
-        filename =
-            insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
-      }
-      printf("save histogram in %s\n", filename.c_str());
+      saveHistogramInsitu(time_ms);
 
-      std::ofstream out(filename);
-      if (!out.is_open())
-      {
-        std::cerr << "Error: could not open histogram file " << filename
-                  << std::endl;
-        // Ne pas faire return ici, continuer la simulation
-      }
-      else
-      {
-        int nbNodes = m_mesh->getNumberOfNodes();
-
-        float pmin = std::numeric_limits<float>::max();
-        float pmax = std::numeric_limits<float>::lowest();
-
-        for (int node = 0; node < nbNodes; node++)
-        {
-          float p = pnGlobal(node, i2);
-          if (p < pmin) pmin = p;
-          if (p > pmax) pmax = p;
-        }
-
-        const int NBINS = 10;
-        std::vector<int> hist(NBINS, 0);
-
-        float binWidth = (pmax - pmin) / NBINS;
-
-        for (int node = 0; node < nbNodes; node++)
-        {
-          float p = pnGlobal(node, i2);
-
-          int bin = (int)((p - pmin) / binWidth);
-          if (bin == NBINS) bin = NBINS - 1;
-
-          hist[bin]++;
-        }
-
-        for (int i = 0; i < NBINS; i++)
-        {
-          float bmin = pmin + i * binWidth;
-          float bmax = bmin + binWidth;
-          out << "Bin " << i << " [" << bmin << " , " << bmax
-              << "] : " << hist[i] << " points\n";
-        }
-        out.close();
-      }
-    }
 
     if (slideSnapshot && indexTimeSample % insituInterval == 0)
-    {
       saveSliceSnapshot(time_ms, axe, values);
-    }
 
-    // ===== SISMOGRAMMES =====
-    saveSismoPoints(indexTimeSample);
+    if (!sismosFile.empty())
+      saveSismoPoints(indexTimeSample);
+
+
+    /////////////////////////////////////////////
+    /////////////////////////////////////////////
 
     // Swap des indices temporels
     auto tmp = solverData.m_i1;
@@ -552,6 +501,67 @@ void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
   }
 
   out.close();
+}
+
+void SEMproxy::saveHistogramInsitu(int time_ms)
+{
+  string filename;
+  if (insituFolder.empty())
+  {
+    filename = "histogram_" + std::to_string(time_ms) + ".csv";
+  }
+  else
+  {
+    filename =
+        insituFolder + "/histogram_" + std::to_string(time_ms) + ".csv";
+  }
+  printf("save histogram in %s\n", filename.c_str());
+
+  std::ofstream out(filename);
+  if (!out.is_open())
+  {
+    std::cerr << "Error: could not open histogram file " << filename
+              << std::endl;
+    // Ne pas faire return ici, continuer la simulation
+  }
+  else
+  {
+    int nbNodes = m_mesh->getNumberOfNodes();
+
+    float pmin = std::numeric_limits<float>::max();
+    float pmax = std::numeric_limits<float>::lowest();
+
+    for (int node = 0; node < nbNodes; node++)
+    {
+      float p = pnGlobal(node, i2);
+      if (p < pmin) pmin = p;
+      if (p > pmax) pmax = p;
+    }
+
+    const int NBINS = 10;
+    std::vector<int> hist(NBINS, 0);
+
+    float binWidth = (pmax - pmin) / NBINS;
+
+    for (int node = 0; node < nbNodes; node++)
+    {
+      float p = pnGlobal(node, i2);
+
+      int bin = (int)((p - pmin) / binWidth);
+      if (bin == NBINS) bin = NBINS - 1;
+
+      hist[bin]++;
+    }
+
+    for (int i = 0; i < NBINS; i++)
+    {
+      float bmin = pmin + i * binWidth;
+      float bmax = bmin + binWidth;
+      out << "Bin " << i << " [" << bmin << " , " << bmax
+          << "] : " << hist[i] << " points\n";
+    }
+    out.close();
+  }
 }
 
 /*TP 3 code*/
