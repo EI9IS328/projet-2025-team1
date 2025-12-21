@@ -3,134 +3,145 @@
 
 import numpy as np
 import pandas as pd
-from plotnine import *
 import argparse
 import argcomplete
-import time
-import csv
 import os
+import glob
+import re
+import matplotlib.pyplot as plt
 
-#todo avec une touche passer direct au snapshot suivant/précédent
+class SnapshotViewer:
+    def __init__(self, files):
+        self.files = files
+        self.index = 0
+        self.fig, self.axes = plt.subplots(2, 2, figsize=(12, 10))
+        self.axes = self.axes.flatten() # Pour itérer facilement sur les 4 subplots
+
+        # Connecter les touches
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+
+        # Charger la première image
+        self.update_plot()
+
+    def get_snapshot_time(self, filename):
+        match = re.search(r'snapshot_(\d+)\.csv', filename)
+        return int(match.group(1)) if match else -1
+
+    def load_data(self, filepath):
+        print(f"--- [{self.index+1}/{len(self.files)}] Chargement : {os.path.basename(filepath)} ---")
+        try:
+            # Lecture optimisée
+            df = pd.read_csv(filepath, delimiter=',', usecols=['x', 'y', 'z', 'p'])
+        except Exception as e:
+            print(f"Erreur : {e}")
+            return None, None
+
+        if df.empty: return None, None
+
+        # Calcul des tranches (exactement comme ton script original)
+        z_min, z_max = df['z'].min(), df['z'].max()
+        z_range = z_max - z_min
+        percentages = [0.25, 0.50, 0.75, 1.0]
+        z_targets = [z_min + p * z_range for p in percentages[:-1]] + [z_max]
+
+        unique_z = df['z'].unique()
+        z_slices_actual = []
+        for target in z_targets:
+            idx = (np.abs(unique_z - target)).argmin()
+            z_slices_actual.append(unique_z[idx])
+
+        z_slices_actual = sorted(list(set(z_slices_actual)))
+
+        df_slices = df[df['z'].isin(z_slices_actual)].copy()
+        return df_slices, z_slices_actual
+
+    def update_plot(self):
+        filepath = self.files[self.index]
+        df_slices, z_vals = self.load_data(filepath)
+
+        if df_slices is None:
+            return
+
+        time_ms = self.get_snapshot_time(filepath)
+        self.fig.suptitle(f"Snapshot: {os.path.basename(filepath)} ({time_ms}ms)\nFlèches G/D pour naviguer", fontsize=16)
+
+        # Nettoyer les axes
+        for ax in self.axes:
+            ax.clear()
+            ax.set_aspect('equal')
+
+        # Trouver min/max global pour la couleur (pour que ce soit cohérent sur les 4 graphs)
+        vmin, vmax = df_slices['p'].min(), df_slices['p'].max()
+
+        # Dessiner chaque tranche
+        for i, z_val in enumerate(z_vals):
+            if i >= 4: break # Max 4 subplots
+
+            ax = self.axes[i]
+            data = df_slices[df_slices['z'] == z_val]
+
+            # Utilisation de scatter avec marqueurs carrés pour imiter geom_raster
+            sc = ax.scatter(data['x'], data['y'], c=data['p'], cmap='viridis',
+                            marker='s', s=10, vmin=vmin, vmax=vmax) # s=taille des points
+
+            ax.set_title(f"Z = {z_val:.2f}")
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+
+        # Cacher les axes vides si moins de 4 tranches
+        for j in range(len(z_vals), 4):
+            self.axes[j].axis('off')
+
+        # Rafraîchir
+        self.fig.canvas.draw()
+
+    def on_key(self, event):
+        if event.key == 'right':
+            self.index = (self.index + 1) % len(self.files)
+            self.update_plot()
+        elif event.key == 'left':
+            self.index = (self.index - 1) % len(self.files)
+            self.update_plot()
+        elif event.key in ['escape', 'q']:
+            plt.close('all')
 
 def main():
-    # Configuration des arguments de la ligne de commande
-    parser = argparse.ArgumentParser(description='Génère un graphique à partir d\'un fichier CSV de snapshot.')
-    parser.add_argument('--input', type=str, required=True, help='Chemin vers le fichier CSV d\'entrée')
-    parser.add_argument('--output', type=str, required=True, help='Chemin pour sauvegarder le graphique')
-    parser.add_argument('--benchmark', type=str, required=False, help='Chemin du CSV benchmark à générer')
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', type=str, required=True)
+    # Arguments legacy ignorés
+    parser.add_argument('--output', type=str, required=False)
+    parser.add_argument('--benchmark', type=str, required=False)
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
-    bench = {}
+    # Trouver les fichiers
+    input_path = os.path.abspath(args.input)
+    input_dir = os.path.dirname(input_path)
+    files = glob.glob(os.path.join(input_dir, "snapshot_*.csv"))
 
+    # Tri numérique
+    files.sort(key=lambda f: int(re.search(r'snapshot_(\d+)\.csv', f).group(1)) if re.search(r'snapshot_(\d+)\.csv', f) else -1)
 
-    # Lecture du fichier CSV avec gestion des erreurs
-    start = time.time()
+    if not files:
+        print("Aucun fichier trouvé.")
+        return
+
+    # Lancer le viewer
     try:
-        df = pd.read_csv(args.input, delimiter=',')
-    except FileNotFoundError:
-        print(f"Erreur : Le fichier d'entrée '{args.input}' n'a pas été trouvé.")
-        return
-    except Exception as e:
-        print(f"Une erreur est survenue lors de la lecture du fichier CSV : {e}")
-        return
-    bench["read_csv"] = time.time() - start
+        start_index = files.index(input_path)
+    except ValueError:
+        start_index = 0
 
-    # Vérification que les colonnes nécessaires (x, y, z, p) existent
-    required_columns = ['x', 'y', 'z', 'p']
-    if not all(col in df.columns for col in required_columns):
-        print(f"Erreur : Le fichier CSV doit contenir les colonnes suivantes : {required_columns}")
-        return
+    print("=== Viewer Matplotlib ===")
+    print("Chargement...")
 
-    ##############################################################################
-    start = time.time()
-    # 1. Déterminer la plage min/max de l'axe Z
-    z_min = df['z'].min()
-    z_max = df['z'].max()
-    z_range = z_max - z_min
-    bench["z_calcul"] = time.time() - start
+    viewer = SnapshotViewer(files)
+    viewer.index = start_index
+    # Un dernier update pour se caler sur le bon index de départ
+    if start_index != 0:
+        viewer.update_plot()
 
-    print(f"Plage de Z détectée : min={z_min:.4f}, max={z_max:.4f}")
+    plt.show()
 
-    # 2. Définir les pourcentages et calculer les coordonnées Z cibles
-    percentages = [0.25, 0.50, 0.75, 1.0]
-    # Pour la dernière coupe, on prend le max directement pour éviter les problèmes de précision
-    z_targets = [z_min + p * z_range for p in percentages[:-1]] + [z_max]
-
-    start = time.time()
-    # 3. Pour chaque cible, trouver la valeur Z existante la plus proche dans les données
-    unique_z_values = df['z'].unique()
-    z_slices_actual = []
-    for target in z_targets:
-        closest_z_index = np.abs(unique_z_values - target).argmin()
-        z_slices_actual.append(unique_z_values[closest_z_index])
-
-    # S'assurer que les valeurs sont uniques et triées
-    z_slices_actual = sorted(list(set(z_slices_actual)))
-    bench["z_slice"] = time.time() - start
-
-    print(f"Coordonnées Z cibles pour {percentages}: {[f'{z:.4f}' for z in z_targets]}")
-    print(f"Tranches Z les plus proches trouvées dans les données : {[f'{z:.4f}' for z in z_slices_actual]}")
-
-    start = time.time()
-    # 4. Filtrer le dataframe pour ne conserver que les données de ces tranches Z
-    df_slices = df[df['z'].isin(z_slices_actual)].copy()
-
-    # Conversion de la colonne 'z' en type Catégoriel pour un meilleur affichage avec facet_wrap
-    df_slices['z'] = pd.Categorical(df_slices['z'])
-    bench["df_filter"] = time.time() - start
-
-    if df_slices.empty:
-        print("Avertissement : Aucune donnée trouvée pour les tranches Z calculées. Vérifiez vos données.")
-        return
-
-    start = time.time()
-    # 5. (Optionnel) Calculer le min et le max de la pression sur les coupes pour information
-    p_min_slices = df_slices['p'].min()
-    p_max_slices = df_slices['p'].max()
-    bench["pressure_range_s"] = time.time() - start
-
-    print(f"Échelle de pression détectée sur les coupes (min/max) : [{p_min_slices:.4f}, {p_max_slices:.4f}]")
-
-    start = time.time()
-    # 6. Créer le graphique avec plotnine
-    p = (
-            ggplot(df_slices, aes(x='x', y='y', fill='p'))
-            + geom_raster()
-            + facet_wrap('~z', labeller='label_both', ncol=2)
-            + scale_fill_cmap('viridis')
-            + coord_fixed()
-            + theme_minimal()
-            + labs(
-        title="Coupes de Pression à différentes profondeurs (Z)",
-        subtitle=f"Coupes aux niveaux Z les plus proches de 25%, 50%, 75% et 100%",
-        x="Axe X",
-        y="Axe Y",
-        fill="Pression"
-    )
-    )
-    bench["plot_creation"] = time.time() - start 
-    # Sauvegarder le graphique avec gestion des erreurs
-
-    start = time.time()
-    try:
-        p.save(args.output, width=12, height=10, units='in', dpi=300, verbose=False)
-        print(f"Graphique sauvegardé dans {args.output}")
-    except Exception as e:
-        print(f"Une erreur est survenue lors de la sauvegarde du graphique : {e}")
-    bench["plot_save"] = time.time() - start
-
-    # Sauvegarder le benchmark dans un fichier csv
-    if args.benchmark:
-        write_header = not os.path.exists(args.benchmark)
-
-        with open(args.benchmark, 'a', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=bench.keys())
-            if write_header:
-                writer.writeheader()
-            writer.writerow(bench)
-
-        print(f"Benchmark sauvegardé dans {args.benchmark}")
 if __name__ == "__main__":
     main()

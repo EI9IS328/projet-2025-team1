@@ -48,6 +48,12 @@ if __name__ == "__main__":
 
     slice = pd.read_csv(args.input)
 
+    # check that slice has x,y,p or y,z,p or x,z,p
+    if not (('x' in slice.columns and 'y' in slice.columns and 'p' in slice.columns) or
+            ('y' in slice.columns and 'z' in slice.columns and 'p' in slice.columns) or
+            ('x' in slice.columns and 'z' in slice.columns and 'p' in slice.columns)):
+        raise ValueError("Input slice CSV must have either 'x','y','p' or 'y','z','p' or 'x','z','p' columns.")
+
     plot_slice(slice, args.output)
 
 

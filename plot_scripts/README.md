@@ -11,4 +11,16 @@ todo
 
 
 ## Histogram viewer
-todo
+The script `histogram-viewer.py` visualizes histograms from histogram file.
+### Inputs:
+- Histogram file (CSV format see FORMAT.md)
+
+
+
+
+
+
+
+
+
+
