@@ -21,13 +21,15 @@ Use alpha-numeric sorting for input files to ensure correct frame order.
 python slices-movie.py --input slices/slice_*.csv --output_file output_movie.mp4 --frame_rate 24
 ```
 
-
 ## Histogram viewer
 The script `histogram-viewer.py` visualizes histograms from histogram file.
 ### Inputs:
 - Histogram file (CSV format see FORMAT.md)
 
-
+## Sismos viewer
+The script `sismos-viewer.py` visualizes seismogram data from sismos file.
+### Inputs:
+- Sismos file (CSV format see FORMAT.md)
 
 
 

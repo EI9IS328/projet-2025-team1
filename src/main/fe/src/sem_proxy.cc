@@ -379,7 +379,7 @@ void SEMproxy::initSismoPoints()
         continue;
       }
 
-      out << "timestep,pressure\n";
+      out << "time,p\n";
       out.close();
     }
   }

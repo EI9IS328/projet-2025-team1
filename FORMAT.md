@@ -1,5 +1,10 @@
 # File Format Documentation
 
+## Sismos File Format
+CSV file with the following columns:
+- `time`: Time step of the simulation
+- `p`: Pressure value at the given time step
+
 ## Snapshot File Format
 CSV file with the following columns:
 - `x`: X-coordinate of the data point
