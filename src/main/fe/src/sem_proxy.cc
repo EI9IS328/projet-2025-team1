@@ -458,16 +458,25 @@ void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
   float eps = 0;
   int dim1;
   int dim2;
+
+  char ax = 'z';
+  if (axe == 0)
+    ax = 'x';
+  else
+    ax = 'y';
+
   // Construire le nom du fichier
   string filename;
   if (sliceFolder.empty())
   {
-    filename = "sliceSnapshot_" + std::to_string(time_ms) + ".csv";
+    filename = "sliceSnapshot_" + std::to_string(time_ms) + "_" + ax + "_" +
+               std::to_string(value) + ".csv";
   }
   else
   {
     filename =
-        sliceFolder + "/sliceSnapshot_" + std::to_string(time_ms) + ".csv";
+        sliceFolder + "/sliceSnapshot_" + std::to_string(time_ms) + "_" + ax +
+        "_" + std::to_string(value) + ".csv";
   }
   printf("save in %s\n", filename.c_str());
   std::ofstream out(filename);
