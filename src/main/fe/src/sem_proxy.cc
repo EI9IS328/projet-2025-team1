@@ -335,11 +335,11 @@ void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
     float total_time_ms = kerneltime_ms + outputtime_ms;
     int nb_nodes = m_mesh->getNumberOfNodes();
 
-    int nb_snapshot = save_snapshot ? (num_sample_ / snapInterval) + 1 : 0;
+    int nb_snapshot = snapshotFiles.size();
     int nb_sismo = sismosPoints.size();
-    int nb_snapshot_ppm = savePPM ? (num_sample_ / ppmInterval) + 1 : 0;
-    int nb_histo = insituHistogram ? (num_sample_ / insituInterval) + 1 : 0;
-    int nb_slice = sliceSnapshot ? (num_sample_ / sliceInterval) + 1 : 0;
+    int nb_snapshot_ppm = ppmFiles.size();
+    int nb_histo = histogramFiles.size();
+    int nb_slice = sliceSnapshotFiles.size();
 
     // Compute output sizes
     long long snapshot_output_size = computeFileSizes(snapshotFiles);
