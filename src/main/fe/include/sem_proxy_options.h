@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cxxopts.hpp>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 
@@ -72,6 +73,13 @@ class SemProxyOptions
       throw std::runtime_error("ex/ey/ez must be > 0");
     if (lx <= 0 || ly <= 0 || lz <= 0)
       throw std::runtime_error("lx/ly/lz must be > 0");
+
+    // Ensure all folder arguments exist (create if necessary)
+    ensureDirectoryExists(snapFolder, "snap-folder");
+    ensureDirectoryExists(sismoFolder, "sismo-folder");
+    ensureDirectoryExists(insituFolders, "insitu-folder");
+    ensureDirectoryExists(sliceFolder, "insitu-slice-folder");
+    ensureDirectoryExists(ppmFolder, "ppm-folder");
 
     //// Validation snapshot ////
     if (saveSnapshot)
@@ -242,4 +250,29 @@ class SemProxyOptions
             "compression-stats", "File to save compression statistics",
             cxxopts::value<string>(o.compressionStatsFile));
   }
+
+ private:
+  static void ensureDirectoryExists(const std::string& path, const std::string& optionName)
+  {
+    if (path.empty()) return;
+
+    std::filesystem::path dirPath(path);
+    if (!std::filesystem::exists(dirPath))
+    {
+      try
+      {
+        std::filesystem::create_directories(dirPath);
+      }
+      catch (const std::filesystem::filesystem_error& e)
+      {
+        throw std::runtime_error("Failed to create directory for " + optionName +
+                                 " (" + path + "): " + e.what());
+      }
+    }
+    else if (!std::filesystem::is_directory(dirPath))
+    {
+      throw std::runtime_error(optionName + " path exists but is not a directory: " + path);
+    }
+  }
 };
+
