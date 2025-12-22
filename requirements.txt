@@ -1,2 +1,6 @@
 pybind11
 numpy
+pandas
+argcomplete
+matplotlib
+opencv-python

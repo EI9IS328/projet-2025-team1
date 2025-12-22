@@ -5,3 +5,6 @@ pygal
 ruff
 scipy
 clang-format==13
+pandas
+argcomplete
+opencv-python
