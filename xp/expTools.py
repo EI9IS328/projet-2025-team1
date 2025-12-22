@@ -86,7 +86,8 @@ def execute(commande, var_env, option, nbruns=1, verbose=True, execPath='.'):
 
                 if (subprocess.call([var + " " + commande + " " + opt], shell=True) == 1):
                     os.chdir(path)
-                    return ("Error on the command used")
+                    print("Error on the command used", flush=True)
+                    return
 
                 current_xp += 1
 

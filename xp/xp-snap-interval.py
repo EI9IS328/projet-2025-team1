@@ -6,7 +6,7 @@ from common import PATH_TO_EXEC, PATH_TO_PERF_FROM_EXEC, PATH_TO_DATA_FROM_EXEC
 options = {}
 options["--ex, --ey, --ez"] = [10], [10], [10]
 options["--timemax"] = [1.536]
-options["--save-snapshot"] = []
+options["--save-snapshot"] = [""]
 options["--snap-interval"] = [2**i for i in range(3,9)]  # 8,16,32,64,128,256
 options["--snap-folder"] = [PATH_TO_DATA_FROM_EXEC + "snap_interval/"]
 options["--perf-file"] = [PATH_TO_PERF_FROM_EXEC + "perf_snap-interval.csv"]
