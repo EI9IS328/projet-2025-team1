@@ -17,6 +17,7 @@
 #include <memory>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "ppm_writer.h"
 #include "sem_proxy_options.h"
@@ -176,6 +177,16 @@ class SEMproxy
 
   void savePerf(float kerneltime_ms, float outputtime_ms);
   void saveHistogramInsitu(int timestep);
+
+  // Helper to compute total file sizes from a list of paths
+  long long computeFileSizes(const std::vector<std::string>& files);
+
+  // Vectors to store output file paths
+  std::vector<std::string> snapshotFiles;
+  std::vector<std::string> sliceSnapshotFiles;
+  std::vector<std::string> histogramFiles;
+  std::vector<std::string> ppmFiles;
+  std::vector<std::string> sismoFiles;
 };
 
 #endif /* SEMPROXY_HPP_ */
