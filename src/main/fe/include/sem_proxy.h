@@ -187,6 +187,16 @@ class SEMproxy
   std::vector<std::string> histogramFiles;
   std::vector<std::string> ppmFiles;
   std::vector<std::string> sismoFiles;
+
+
+  // Time for each output type (in milliseconds)
+  time_point<system_clock> totalSnapshotTime;
+  time_point<system_clock> totalSliceTime;
+  time_point<system_clock> totalHistogramTime;
+  time_point<system_clock> totalPPMTime;
+  time_point<system_clock> totalSismoTime;
+
+
 };
 
 #endif /* SEMPROXY_HPP_ */

@@ -12,13 +12,13 @@
 #include <sem_solver_acoustic.h>
 #include <source_and_receiver_utils.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include <cxxopts.hpp>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <variant>
-#include <sys/stat.h>
 
 #include "compression_utils.h"
 #include "ppm_writer.h"
@@ -288,9 +288,9 @@ void SEMproxy::run()
       time_point_cast<milliseconds>(totalOutputTime).time_since_epoch().count();
 
   cout << "------------------------------------------------ " << endl;
-  cout << "\n---- Elapsed Kernel Time : " << kerneltime_ms / 1E6 << " seconds."
+  cout << "\n---- Elapsed Kernel Time : " << kerneltime_ms / 1E3 << " seconds."
        << endl;
-  cout << "---- Elapsed Output Time : " << outputtime_ms / 1E6 << " seconds."
+  cout << "---- Elapsed Output Time : " << outputtime_ms / 1E3 << " seconds."
        << endl;
   cout << "------------------------------------------------ " << endl;
 
@@ -329,7 +329,9 @@ void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
       out << "kernel_time_ms,output_time_ms,total_time_ms,nb_nodes,nb_steps,"
              "nb_snapshot,nb_sismo,nb_snapshot_ppm,nb_histo,nb_slice,"
              "snapshot_output_size,slice_output_size,histogram_output_size,"
-             "ppm_output_size,sismo_output_size\n";
+             "ppm_output_size,sismo_output_size,total_snapshot_time,"
+             "total_slice_time,total_histogram_time,total_ppm_time,"
+             "total_sismo_time\n";
     }
 
     float total_time_ms = kerneltime_ms + outputtime_ms;
@@ -348,13 +350,22 @@ void SEMproxy::savePerf(float kerneltime_ms, float outputtime_ms)
     long long ppm_output_size = computeFileSizes(ppmFiles);
     long long sismo_output_size = computeFileSizes(sismoFiles);
 
+    // Get total times in ms
+    float total_snapshot_time = time_point_cast<milliseconds>(totalSnapshotTime).time_since_epoch().count();
+    float total_slice_time = time_point_cast<milliseconds>(totalSliceTime).time_since_epoch().count();
+    float total_histogram_time = time_point_cast<milliseconds>(totalHistogramTime).time_since_epoch().count();
+    float total_ppm_time = time_point_cast<milliseconds>(totalPPMTime).time_since_epoch().count();
+    float total_sismo_time = time_point_cast<milliseconds>(totalSismoTime).time_since_epoch().count();
+
     out << std::fixed << std::setprecision(3) << kerneltime_ms << ","
         << outputtime_ms << "," << total_time_ms << "," << nb_nodes << ","
         << num_sample_ << "," << nb_snapshot << "," << nb_sismo << ","
         << nb_snapshot_ppm << "," << nb_histo << "," << nb_slice << ","
         << snapshot_output_size << "," << slice_output_size << ","
         << histogram_output_size << "," << ppm_output_size << ","
-        << sismo_output_size << "\n";
+        << sismo_output_size << "," << total_snapshot_time << ","
+        << total_slice_time << "," << total_histogram_time << ","
+        << total_ppm_time << "," << total_sismo_time << "\n";
 
     out.close();
   }
@@ -418,33 +429,35 @@ void SEMproxy::initSismoPoints()
 
 void SEMproxy::saveSismoPoints(int timestep)
 {
-  if (!sismosFile.empty())
+  auto start_time = system_clock::now();
+
+  for (size_t i = 0; i < sismosNodeIndex.size(); i++)
   {
-    for (size_t i = 0; i < sismosNodeIndex.size(); i++)
+    int node = sismosNodeIndex[i];
+    const auto& s = sismosPoints[i];
+
+    float pression = pnGlobal(node, i2);
+
+    string filename = getSismoFileName(s);
+
+    std::ofstream out(filename, std::ios::app);
+    if (!out.is_open())
     {
-      int node = sismosNodeIndex[i];
-      const auto& s = sismosPoints[i];
-
-      float pression = pnGlobal(node, i2);
-
-      string filename = getSismoFileName(s);
-
-      std::ofstream out(filename, std::ios::app);
-      if (!out.is_open())
-      {
-        std::cerr << "Error: could not open sismo file " << filename
-                  << std::endl;
-        continue;
-      }
-
-      out << timestep << "," << pression << "\n";
-      out.close();
+      std::cerr << "Error: could not open sismo file " << filename << std::endl;
+      continue;
     }
+
+    out << timestep << "," << pression << "\n";
+    out.close();
   }
+
+  totalSismoTime += system_clock::now() - start_time;
 }
 
 void SEMproxy::saveSnapshot(int time_ms)
 {
+  auto start_time = system_clock::now();
+
   // Construire le nom du fichier
   string filename;
   if (snapFolder.empty())
@@ -485,10 +498,14 @@ void SEMproxy::saveSnapshot(int time_ms)
 
   // Track snapshot file
   snapshotFiles.push_back(filename);
+
+  totalSnapshotTime += system_clock::now() - start_time;
 }
 
 void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
 {
+  auto start_time = system_clock::now();
+
   float eps = 0;
   int dim1;
   int dim2;
@@ -508,9 +525,8 @@ void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
   }
   else
   {
-    filename =
-        sliceFolder + "/sliceSnapshot_" + std::to_string(time_ms) + "_" + ax +
-        "_" + std::to_string(value) + ".csv";
+    filename = sliceFolder + "/sliceSnapshot_" + std::to_string(time_ms) + "_" +
+               ax + "_" + std::to_string(value) + ".csv";
   }
   printf("save in %s\n", filename.c_str());
   std::ofstream out(filename);
@@ -568,10 +584,14 @@ void SEMproxy::saveSliceSnapshot(int time_ms, int axe, float value)
 
   // Track slice snapshot file
   sliceSnapshotFiles.push_back(filename);
+
+  totalSliceTime += system_clock::now() - start_time;
 }
 
 void SEMproxy::saveHistogramInsitu(int time_ms)
 {
+  auto start_time = system_clock::now();
+
   string filename;
   if (insituFolder.empty())
   {
@@ -607,18 +627,16 @@ void SEMproxy::saveHistogramInsitu(int time_ms)
 
   std::vector<int> hist(insituHistogramBins, 0);
 
-  float binWidth = (pmax - pmin) / (float) insituHistogramBins;
+  float binWidth = (pmax - pmin) / (float)insituHistogramBins;
 
-  if (binWidth == 0.0f)
-    binWidth = 1.0f;
+  if (binWidth == 0.0f) binWidth = 1.0f;
 
   for (int node = 0; node < nbNodes; node++)
   {
     float p = pnGlobal(node, i2);
 
     int bin_index = static_cast<int>((p - pmin) / binWidth);
-    if (bin_index == insituHistogramBins)
-        bin_index--;
+    if (bin_index == insituHistogramBins) bin_index--;
 
     hist[bin_index]++;
   }
@@ -633,10 +651,14 @@ void SEMproxy::saveHistogramInsitu(int time_ms)
 
   // Track histogram file
   histogramFiles.push_back(filename);
+
+  totalHistogramTime += system_clock::now() - start_time;
 }
 
 void SEMproxy::saveSnapshotPPM(int time_ms)
 {
+  auto start_time = system_clock::now();
+
   // Extraire les données du champ de pression
   int nbNodes = m_mesh->getNumberOfNodes();
   std::vector<float> pressure_field;
@@ -717,8 +739,9 @@ void SEMproxy::saveSnapshotPPM(int time_ms)
   {
     std::cerr << "Error saving PPM: " << e.what() << std::endl;
   }
-}
 
+  totalPPMTime += system_clock::now() - start_time;
+}
 
 void SEMproxy::parsePointSismos(const std::string& filename)
 {
