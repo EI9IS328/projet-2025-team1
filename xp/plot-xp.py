@@ -11,7 +11,9 @@ import textwrap
 from mizani.breaks import extended_breaks
 
 
-COLUMNS = ["kernel_time_ms","output_time_ms","total_time_ms","nb_nodes","nb_steps","nb_snapshot","nb_sismo","nb_snapshot_ppm","nb_histo","nb_slice","snapshot_output_size","slice_output_size","histogram_output_size","ppm_output_size","sismo_output_size"]
+COLUMNS = ["kernel_time_ms","output_time_ms","total_time_ms","nb_nodes","nb_steps","nb_snapshot","nb_sismo","nb_snapshot_ppm",
+           "nb_histo","nb_slice","snapshot_output_size","slice_output_size","histogram_output_size","ppm_output_size","sismo_output_size",
+           "total_snapshot_time","total_slice_time","total_histogram_time","total_ppm_time","total_sismo_time"]
 
 def check_column_exists(df):
     for col in COLUMNS:
@@ -61,7 +63,7 @@ def createLegend(df, args, is_heatmap=False):
 
     ### black list of columns not to include in legend
 
-    black_list = [x, y] + ["kernel_time_ms","output_time_ms","total_time_ms","snapshot_output_size","slice_output_size","histogram_output_size","ppm_output_size","sismo_output_size"]
+    black_list = [x, y] + ["kernel_time_ms","output_time_ms","total_time_ms","snapshot_output_size","slice_output_size","histogram_output_size","ppm_output_size","sismo_output_size","total_snapshot_time","total_slice_time","total_histogram_time","total_ppm_time","total_sismo_time"]
 
 
 
