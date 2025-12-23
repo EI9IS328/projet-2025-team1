@@ -264,7 +264,7 @@ void SEMproxy::run()
     if (insituHistogram && indexTimeSample % insituInterval == 0)
       saveHistogramInsitu(time_ms);
 
-    if (sliceSnapshot && indexTimeSample % insituInterval == 0)
+    if (sliceSnapshot && indexTimeSample % sliceInterval == 0)
       saveSliceSnapshot(time_ms, axe, values);
 
     if (!sismosFile.empty()) saveSismoPoints(indexTimeSample);
