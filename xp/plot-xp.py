@@ -24,6 +24,8 @@ def check_column_exists(df):
 def get_unit_label(col):
     if col in ["snapshot_output_size","slice_output_size","histogram_output_size","ppm_output_size","sismo_output_size"]:
         return "MB"
+    elif col in ["kernel_time_ms","output_time_ms","total_time_ms","total_snapshot_time","total_slice_time","total_histogram_time","total_ppm_time","total_sismo_time"]:
+        return "milliseconds"
     else :
         return ""
 
