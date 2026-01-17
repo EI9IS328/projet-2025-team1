@@ -59,11 +59,13 @@ def descriptive_stats(input_file, bins=100, output_file=None, verbose=False):
     _min = [min(data['p'])]
     _max = [max(data['p'])]
     _variance = [np.var(data['p'])]
+    _mediane = [np.median(data['p'])]
     desc_df = pd.DataFrame({
         'mean': _mean,
         'min': _min,
         'max': _max,
-        'variance': _variance
+        'variance': _variance,
+        'mediane': _mediane
     })
 
     if output_file is not None:
