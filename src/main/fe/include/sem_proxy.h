@@ -126,7 +126,8 @@ class SEMproxy
   int insituHistogramBins;
   int insituInterval;
   string insituFolder;
-
+  bool insituDesc;
+  
   bool sliceSnapshot;
   int sliceInterval;
   int axe;
@@ -177,7 +178,8 @@ class SEMproxy
 
   void savePerf(float kerneltime_ms, float outputtime_ms);
   void saveHistogramInsitu(int timestep);
-
+  void saveDescDataInsitu(int timestep);
+  
   // Helper to compute total file sizes from a list of paths
   long long computeFileSizes(const std::vector<std::string>& files);
 
@@ -185,6 +187,7 @@ class SEMproxy
   std::vector<std::string> snapshotFiles;
   std::vector<std::string> sliceSnapshotFiles;
   std::vector<std::string> histogramFiles;
+  std::vector<std::string> DescFiles;
   std::vector<std::string> ppmFiles;
   std::vector<std::string> sismoFiles;
 
@@ -192,6 +195,7 @@ class SEMproxy
   // Time for each output type (in milliseconds)
   time_point<system_clock> totalSnapshotTime;
   time_point<system_clock> totalSliceTime;
+  time_point<system_clock> totalDescTime;
   time_point<system_clock> totalHistogramTime;
   time_point<system_clock> totalPPMTime;
   time_point<system_clock> totalSismoTime;

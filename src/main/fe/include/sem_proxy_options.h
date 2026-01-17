@@ -45,7 +45,8 @@ class SemProxyOptions
   int insituInterval = 50;
   bool insituHistogram = false;
   int insituHistogramBins = 100;
-
+  bool insituDesc = false;
+  
   bool sliceSnapshot = false;
   int sliceInterval = 50;
   int axe = 0;
@@ -208,7 +209,9 @@ class SemProxyOptions
             cxxopts::value<bool>(o.insituHistogram))(
             "insitu-histogram-bins", "Number of bins for histogram (default = 100)",
             cxxopts::value<int>(o.insituHistogramBins))
-
+      // In-situ Descriptive data
+      ("insitu-desc", "Enable in-situ descriptive data processing",
+            cxxopts::value<bool>(o.insituDesc))
         // In-situ slice Snapshot
         ("insitu-slice", "Enable in-situ slice snapshots",
          cxxopts::value<bool>(o.sliceSnapshot))(

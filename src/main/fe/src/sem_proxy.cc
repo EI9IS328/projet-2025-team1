@@ -655,6 +655,84 @@ void SEMproxy::saveHistogramInsitu(int time_ms)
   totalHistogramTime += system_clock::now() - start_time;
 }
 
+void SEMproxy::saveDescDataInsitu(int time_ms)
+{
+  auto start_time = system_clock::now();
+
+  string filename;
+  if (insituFolder.empty())
+  {
+    filename = "descriptive_data _" + std::to_string(time_ms) + ".csv";
+  }
+  else
+  {
+    filename = insituFolder + "/desc_data_" + std::to_string(time_ms) + ".csv";
+  }
+  printf("save descriptive data in %s\n", filename.c_str());
+
+  std::ofstream out(filename);
+  if (!out.is_open())
+  {
+    std::cerr << "Error: could not open descriptive data file " << filename
+              << std::endl;
+    return;
+  }
+
+  out << "min,max,mean,variance,mediane\n";  // header
+
+  int nbNodes = m_mesh->getNumberOfNodes();
+
+  float pmin = std::numeric_limits<float>::max();
+  float pmax = std::numeric_limits<float>::lowest();
+  float mean = 0;
+  float var = 0;
+  int value_up = 0;
+  int value_down = 0;
+  float median = pnGlobal(0,i2);
+  
+  for (int node = 0; node < nbNodes; node++)
+  {
+    float p = pnGlobal(node, i2);
+    if (p < pmin) pmin = p;
+    if (p > pmax) pmax = p;
+    mean+=p;
+    if(p>=median){
+      if(value_up>=(nbNodes/2-1)){
+	median = p;
+	value_down++;
+      }
+      else{
+	value_up++;}
+    }
+    else{
+      if(value_down>=(nbNodes/2-1)){
+	median=p;
+	value_up++;
+      }
+      else{
+	value_down++;}
+    }
+  }
+  mean/=nbNodes;
+  for (int node = 0; node < nbNodes; node++)
+  {
+    float p = pnGlobal(node, i2);
+    if (p < pmin) pmin = p;
+    if (p > pmax) pmax = p;
+    var+=(p-mean)*(p-mean);
+  }
+  var/=nbNodes;
+
+  out << pmin << "," << pmax << "," << mean << "," << var << "," << median << "\n";
+
+  out.close();
+
+  // Track descriptive stats file
+  DescFiles.push_back(filename);
+
+  totalDescTime += system_clock::now() - start_time;
+}
+
 void SEMproxy::saveSnapshotPPM(int time_ms)
 {
   auto start_time = system_clock::now();
